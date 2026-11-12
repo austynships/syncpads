@@ -6,3 +6,8 @@
 	reverse_proxy app:3000
 }
 
+# www.<domain> -> <domain>. Needs a www DNS record pointing at this server.
+www.{$APP_DOMAIN} {
+	redir https://{$APP_DOMAIN}{uri} permanent
+}
+
