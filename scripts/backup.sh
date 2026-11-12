@@ -5,8 +5,11 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-set -a; source .env; set +a
+# Read single values from .env (it isn't valid shell, e.g. EMAIL_FROM has < >).
+envval() { grep -E "^$1=" .env | tail -n 1 | cut -d= -f2- || true; }
+BACKUP_DIR="${BACKUP_DIR:-$(envval BACKUP_DIR)}"
 BACKUP_DIR="${BACKUP_DIR:-/var/backups/syncpads}"
+BACKUP_KEEP_DAYS="${BACKUP_KEEP_DAYS:-$(envval BACKUP_KEEP_DAYS)}"
 BACKUP_KEEP_DAYS="${BACKUP_KEEP_DAYS:-14}"
 
 mkdir -p "$BACKUP_DIR"
@@ -16,9 +19,10 @@ STAMP="$(date -u +%Y-%m-%dT%H%M%SZ)"
 FILE="${BACKUP_DIR}/syncpads-${STAMP}.sql.gz"
 
 echo "==> Dumping database"
-docker compose -f docker-compose.prod.yml exec -T mariadb \
-  mariadb-dump --single-transaction --routines --triggers \
-  -uroot -p"${DB_ROOT_PASSWORD}" syncpads | gzip > "${FILE}.part"
+# The root password comes from the container's own environment.
+docker compose -f docker-compose.prod.yml exec -T mariadb sh -c \
+  'exec mariadb-dump --single-transaction --routines --triggers -uroot -p"$MARIADB_ROOT_PASSWORD" syncpads' \
+  | gzip > "${FILE}.part"
 mv "${FILE}.part" "$FILE"
 chmod 600 "$FILE"
 
