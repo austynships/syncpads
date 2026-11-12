@@ -98,8 +98,9 @@ export const schemas = {
           }),
         ])
         .optional(),
+      aiEnabled: z.boolean().optional(),
     })
-    .refine((v) => v.theme !== undefined || v.wallpaper !== undefined, "Nothing to update."),
+    .refine((v) => v.theme !== undefined || v.wallpaper !== undefined || v.aiEnabled !== undefined, "Nothing to update."),
 
   createPage: z.object({ name }),
   updatePage: z

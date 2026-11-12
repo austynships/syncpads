@@ -12,6 +12,7 @@ import { wallpaperCss } from "@/lib/wallpapers";
 import { api } from "./api";
 import { PageBoard, type BoardActions } from "./board";
 import { PageTabs } from "./page-tabs";
+import { SearchBar } from "./search-bar";
 import { SettingsPanel } from "./settings-panel";
 import { mapGroup, mapItem, mapPage, removeItem, reorderBy, setPageGroups } from "./state-ops";
 import { clearCache, useStartPage } from "./use-start-page";
@@ -139,6 +140,8 @@ export function StartPage({ userId, email }: { userId: string; email: string }) 
   };
   const setTheme = (theme: Theme) =>
     mutate((s) => ({ ...s, settings: { ...s.settings, theme } }), () => api("PATCH", "/api/settings", { theme }));
+  const setAiEnabled = (aiEnabled: boolean) =>
+    mutate((s) => ({ ...s, settings: { ...s.settings, aiEnabled } }), () => api("PATCH", "/api/settings", { aiEnabled }));
   const setWallpaper = (wallpaper: Wallpaper) =>
     mutate((s) => ({ ...s, settings: { ...s.settings, wallpaper } }), () => api("PATCH", "/api/settings", { wallpaper }));
 
@@ -197,6 +200,7 @@ export function StartPage({ userId, email }: { userId: string; email: string }) 
             onReorder={reorderPages}
             onRename={renamePage}
           />
+          <SearchBar onOpenPage={selectPage} />
           {offline && (
             <span
               className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-500/15 dark:text-amber-300"
@@ -223,6 +227,7 @@ export function StartPage({ userId, email }: { userId: string; email: string }) 
             onClose={() => setSettingsOpen(false)}
             onTheme={setTheme}
             onWallpaper={setWallpaper}
+            onAiEnabled={setAiEnabled}
             onPageLayout={(layout) => setPageLayout(page.id, layout)}
             onRenamePage={(name) => renamePage(page.id, name)}
             onDeletePage={() => deletePage(page.id)}

@@ -53,6 +53,18 @@ Free plan limits are not enforced yet (Phase 6).
 
 Imports add new pages after your existing ones in a single transaction, so a failed import leaves nothing half-done. Imported links have `source = 'import'`. The API accepts writes from browser extensions as well as the site itself (`src/server/api.ts`). start.me's RSS export (OPML) isn't imported yet; that comes with the RSS widget (SP-12).
 
+## What's in Phase 4 (enrichment and search)
+
+| Feature | Notes |
+| --- | --- |
+| Enrichment worker (SP-13) | `src/worker/main.ts`, its own container (`worker` in `docker-compose.prod.yml`). Fetches each saved link with `safe-fetch` (5 MB, 15 s, private IPs blocked), stores a clean title and a text snapshot, and gives untitled links their page title. Notes are indexed by their own text. |
+| Queue | The `item_enrichment` table is the queue (`src/server/enrichment/queue.ts`): rows are written in the same transaction as the item, claimed with `claim_token`, retried with backoff (2, 4, 8 min) and marked `failed` after 4 tries or on a 4xx. Items saved before Phase 4 are queued automatically. |
+| Summaries and tags | Claude (`claude-haiku-5-5`, structured output, low effort; override with `ENRICH_MODEL`). Two sentences plus 3 to 6 tags. Page text is labeled as untrusted in the prompt. |
+| Search (SP-14) | `GET /api/search?q=&pageId=&tag=&limit=` and the search bar (Ctrl/⌘+K or `/`). Keyword: title, address, tags, summary, note text, and page text through a FULLTEXT index. Meaning: Voyage AI embeddings (`voyage-4`, 1024 dimensions) in the MariaDB `VECTOR` column. The two lists are merged by reciprocal rank fusion. |
+| Consent | Settings → **Smart features** is off by default. Page text is sent to Anthropic and Voyage AI only for users who turn it on, and only if the server has `ANTHROPIC_API_KEY` / `VOYAGE_API_KEY`. Turning it on processes links already saved. Without keys, titles, snapshots and keyword search still work. |
+
+Run the worker locally with `npm run worker` (bundles `src/worker/main.ts` to `dist/worker.cjs` and runs it with `.env`).
+
 ## Run locally
 
 Requirements: Node.js 22 or newer, and Docker Desktop (for MariaDB and Redis).

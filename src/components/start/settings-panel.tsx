@@ -14,6 +14,7 @@ type Props = {
   onClose: () => void;
   onTheme: (theme: Theme) => void;
   onWallpaper: (wallpaper: Wallpaper) => void;
+  onAiEnabled: (enabled: boolean) => void;
   onPageLayout: (layout: PageLayout) => void;
   onRenamePage: (name: string) => void;
   onDeletePage: () => void;
@@ -120,6 +121,14 @@ export function SettingsPanel(p: Props) {
           </section>
 
           <section>
+            <SmartFeatures
+              enabled={p.settings.aiEnabled ?? false}
+              available={p.settings.aiAvailable ?? { summaries: false, embeddings: false }}
+              onChange={p.onAiEnabled}
+            />
+          </section>
+
+          <section>
             <ImportBookmarks onImported={p.onImported} />
           </section>
 
@@ -168,6 +177,61 @@ export function SettingsPanel(p: Props) {
           Tip: paste a link anywhere on the page to add it to the first group.
         </footer>
       </aside>
+    </div>
+  );
+}
+
+/**
+ * Smart features (SP-13, SP-14): summaries, tags and search by meaning.
+ * Off by default; when on, the text of saved pages is sent to Anthropic
+ * (summaries) and Voyage AI (search by meaning). Keyword search always works.
+ */
+function SmartFeatures({
+  enabled,
+  available,
+  onChange,
+}: {
+  enabled: boolean;
+  available: { summaries: boolean; embeddings: boolean };
+  onChange: (enabled: boolean) => void;
+}) {
+  const anyAvailable = available.summaries || available.embeddings;
+  return (
+    <div>
+      <h3 className="label">Smart features</h3>
+      <div className="rounded-xl border border-slate-900/10 p-4 dark:border-white/10">
+        <label className="flex items-start justify-between gap-4">
+          <span>
+            <span className="block text-sm font-semibold text-slate-900 dark:text-white">Summaries and search by meaning</span>
+            <span className="mt-1 block text-xs leading-relaxed text-slate-600 dark:text-slate-400">
+              Adds a short summary and tags to each link you save, and finds links by what they&apos;re about, not just
+              their words. When on, the text of the pages you save is sent to Anthropic and Voyage AI to do this.
+            </span>
+          </span>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={enabled}
+            disabled={!anyAvailable}
+            onClick={() => onChange(!enabled)}
+            className={`relative mt-0.5 h-6 w-11 shrink-0 rounded-full transition disabled:opacity-40 ${
+              enabled ? "bg-sync-600" : "bg-slate-300 dark:bg-slate-700"
+            }`}
+          >
+            <span
+              className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all ${enabled ? "left-[22px]" : "left-0.5"}`}
+            />
+          </button>
+        </label>
+        {!anyAvailable && (
+          <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">Not available on this server yet.</p>
+        )}
+        {enabled && anyAvailable && (
+          <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">
+            Your saved links are being processed in the background. New links get a summary within a minute.
+          </p>
+        )}
+      </div>
     </div>
   );
 }

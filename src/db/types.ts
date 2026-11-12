@@ -18,7 +18,7 @@ export const json = <T>(name: string) =>
   })(name);
 
 /** Embedding size used across the app. Changing it needs a migration. */
-export const EMBEDDING_DIMENSIONS = 1536;
+export const EMBEDDING_DIMENSIONS = 1024; // voyage-4 output_dimension
 
 /** MEDIUMBLOB (binary up to 16 MB), read and written as a Buffer. */
 export const mediumblob = customType<{ data: Buffer; driverData: Buffer }>({

@@ -12,6 +12,8 @@ export type ItemDTO = {
   title: string | null;
   noteBody: string | null; // sanitized HTML
   position: number;
+  summary?: string | null; // from enrichment (SP-13), when smart features are on
+  tags?: string[] | null;
 };
 
 export type GroupDTO = {
@@ -31,7 +33,12 @@ export type PageDTO = {
   groups: GroupDTO[];
 };
 
-export type SettingsDTO = { theme: Theme; wallpaper: Wallpaper };
+export type SettingsDTO = {
+  theme: Theme;
+  wallpaper: Wallpaper;
+  aiEnabled: boolean; // the user's consent to send page text to AI providers
+  aiAvailable: { summaries: boolean; embeddings: boolean }; // provider keys configured on the server
+};
 
 export type StateDTO = {
   revision: number;

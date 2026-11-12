@@ -17,6 +17,10 @@ export function LinkItem({ item, layout, onSave, onDelete }: Props) {
   const [editing, setEditing] = useState(false);
   const url = item.url ?? "";
   const label = item.title || displayHost(url);
+  // Hover text: the summary (when smart features made one), then the address.
+  const tooltip = item.summary ? `${item.summary}
+
+${url}` : url;
 
   if (editing) {
     return (
@@ -54,7 +58,7 @@ export function LinkItem({ item, layout, onSave, onDelete }: Props) {
           href={url}
           draggable={false}
           className="flex h-24 flex-col items-center justify-center gap-2 rounded-xl p-2 text-center transition hover:bg-slate-900/[0.04] dark:hover:bg-white/5"
-          title={url}
+          title={tooltip}
         >
           <Favicon url={url} size={32} />
           <span className="line-clamp-2 w-full break-words text-xs font-medium text-slate-700 dark:text-slate-300">{label}</span>
@@ -70,7 +74,7 @@ export function LinkItem({ item, layout, onSave, onDelete }: Props) {
         href={url}
         draggable={false}
         className="flex items-center gap-2.5 rounded-lg px-2 py-1.5 pr-14 transition hover:bg-slate-900/[0.04] dark:hover:bg-white/5"
-        title={url}
+        title={tooltip}
       >
         <Favicon url={url} />
         <span className="truncate text-sm text-slate-800 dark:text-slate-200">{label}</span>

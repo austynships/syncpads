@@ -1,6 +1,7 @@
 # Production stack for one Ubuntu server (no Coolify).
 #
 #   Caddy (HTTPS, ports 80/443) -> app (Next.js, port 3000) -> MariaDB 11.8 + Redis
+#   worker: fetches saved pages, summaries and embeddings in the background (Phase 4)
 #
 # On the server, from the repo folder:
 #   cp .env.production.example .env   # fill it in
@@ -26,6 +27,7 @@ services:
 
   app:
     build: .
+    image: syncpads-app:latest
     restart: unless-stopped
     environment:
       BETTER_AUTH_URL: https://${APP_DOMAIN}
@@ -36,10 +38,33 @@ services:
       EMAIL_FROM: ${EMAIL_FROM:?set EMAIL_FROM in .env}
       TRUST_PROXY: "true" # Caddy sets X-Forwarded-For
       RUN_MIGRATIONS_ON_START: "true"
+      # Smart features (optional): without these keys, summaries and search by meaning stay off.
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      VOYAGE_API_KEY: ${VOYAGE_API_KEY:-}
     depends_on:
       mariadb:
         condition: service_healthy
       redis:
+        condition: service_healthy
+
+  # Enrichment worker (SP-13): same image as the app, different command.
+  worker:
+    image: syncpads-app:latest
+    pull_policy: never
+    restart: unless-stopped
+    command: ["node", "worker.cjs"]
+    healthcheck:
+      disable: true # the image's check is for the web app on port 3000
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: mysql://syncpads:${DB_PASSWORD}@mariadb:3306/syncpads
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      VOYAGE_API_KEY: ${VOYAGE_API_KEY:-}
+      ENRICH_MODEL: ${ENRICH_MODEL:-}
+    depends_on:
+      app:
+        condition: service_started
+      mariadb:
         condition: service_healthy
 
   mariadb:

@@ -36,7 +36,7 @@ describe.skipIf(!url)("start page data", () => {
     const state = await sp.getState(alice);
     expect(state.pages.map((p) => p.name)).toEqual(["Home"]);
     expect(state.pages[0].groups.map((g) => g.name)).toEqual(["Favorites"]);
-    expect(state.settings).toEqual({ theme: "system", wallpaper: { type: "none" } });
+    expect(state.settings).toMatchObject({ theme: "system", wallpaper: { type: "none" }, aiEnabled: false });
   });
 
   it("adds, edits, trashes and restores links; every write bumps the revision", async () => {
@@ -121,7 +121,7 @@ describe.skipIf(!url)("start page data", () => {
     await expect(sp.deletePage(bob, onlyPage)).rejects.toThrow(/at least one page/);
 
     await sp.updateSettings(bob, { theme: "dark", wallpaper: { type: "preset", value: "ocean" } });
-    expect((await sp.getState(bob)).settings).toEqual({ theme: "dark", wallpaper: { type: "preset", value: "ocean" } });
+    expect((await sp.getState(bob)).settings).toMatchObject({ theme: "dark", wallpaper: { type: "preset", value: "ocean" } });
   });
 
   it("saves a group of tabs in one write, skipping non-web addresses (SP-8)", async () => {

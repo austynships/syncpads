@@ -208,7 +208,13 @@ export const items = mysqlTable(
   ],
 );
 
-/** Filled by the enrichment worker (Phase 4). */
+/**
+ * Filled by the enrichment worker (Phase 4, SP-13). Each row is also the
+ * worker's job: status "pending" rows are claimed with `claim_token`, retried
+ * with backoff via `next_attempt_at`, and given up after a few attempts.
+ * A FULLTEXT index on (title, summary, text_snapshot) is added by a custom
+ * migration (drizzle/0003_*), since drizzle-kit can't declare one.
+ */
 export const itemEnrichment = mysqlTable(
   "item_enrichment",
   {
@@ -220,20 +226,36 @@ export const itemEnrichment = mysqlTable(
       .notNull()
       .default("pending"),
     fetchedAt: datetime("fetched_at", { mode: "date", fsp: 3 }),
+    // Clean page title (og:title or <title>).
+    title: varchar("title", { length: 512 }),
     // Untrusted page text: always labeled as untrusted when shown to agents.
     textSnapshot: mediumtext("text_snapshot"),
     summary: text("summary"),
     tags: json<string[]>("tags"),
+    // When the summary/tags and the embedding were last made (null = not yet).
+    summarizedAt: datetime("summarized_at", { mode: "date", fsp: 3 }),
+    embeddedAt: datetime("embedded_at", { mode: "date", fsp: 3 }),
+    // Job bookkeeping.
+    attempts: int("attempts").notNull().default(0),
+    nextAttemptAt: datetime("next_attempt_at", { mode: "date", fsp: 3 }),
+    claimToken: varchar("claim_token", { length: 36 }),
+    claimedAt: datetime("claimed_at", { mode: "date", fsp: 3 }),
+    error: varchar("error", { length: 255 }),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
-  (t) => [index("item_enrichment_user_id_idx").on(t.userId)],
+  (t) => [
+    index("item_enrichment_user_id_idx").on(t.userId),
+    index("item_enrichment_queue_idx").on(t.status, t.nextAttemptAt),
+    index("item_enrichment_claim_idx").on(t.claimToken),
+  ],
 );
 
 /**
  * One embedding per item, stored in a MariaDB VECTOR column.
  * Insert with VEC_FromText() and search with VEC_DISTANCE_COSINE(), always
- * filtered by user_id — helpers live in src/db/vector.ts. No vector index yet.
+ * filtered by user_id — helpers live in src/db/vector.ts. No vector index yet:
+ * each search scans only one user's rows (user_id index), which is fast at MVP sizes.
  */
 export const itemEmbeddings = mysqlTable(
   "item_embeddings",
@@ -352,6 +374,9 @@ export const userSettings = mysqlTable("user_settings", {
   theme: mysqlEnum("theme", ["system", "light", "dark"]).notNull().default("system"),
   wallpaper: json<Wallpaper>("wallpaper"),
   revision: bigint("revision", { mode: "number", unsigned: true }).notNull().default(0),
+  // Smart features (summaries, tags, search by meaning). Off until the user
+  // turns them on: page text is only sent to AI providers when this is true.
+  aiEnabled: boolean("ai_enabled").notNull().default(false),
   updatedAt: updatedAt(),
 });
 

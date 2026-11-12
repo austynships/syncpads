@@ -82,7 +82,7 @@ describe.skipIf(!url)("account deletion", () => {
     });
     await db.insert(s.itemEnrichment).values({ itemId, userId, summary: "x", tags: ["a"] });
     await upsertEmbedding(db, {
-      itemId, userId, model: "test", embedding: Array.from({ length: 1536 }, (_, i) => i / 1536),
+      itemId, userId, model: "test", embedding: Array.from({ length: 1024 }, (_, i) => i / 1024), // EMBEDDING_DIMENSIONS
     });
     await db.insert(s.widgets).values({ id: widgetId, userId, pageId, type: "rss", config: { feedUrl: "https://example.com/feed" } });
     await db.insert(s.feedItems).values({ userId, widgetId, title: "Post", url: "https://example.com/p" });

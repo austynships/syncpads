@@ -16,7 +16,7 @@ FROM base AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-RUN mkdir -p public && npm run build
+RUN mkdir -p public && npm run build && npm run build:worker
 
 # 3. Small runtime image
 FROM base AS runner
@@ -34,6 +34,8 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 COPY --from=builder --chown=nextjs:nodejs /app/public ./public
 # SQL migrations, applied on startup by src/instrumentation.ts
 COPY --from=builder --chown=nextjs:nodejs /app/drizzle ./drizzle
+# Enrichment worker (Phase 4): one bundled file, run by the "worker" service.
+COPY --from=builder --chown=nextjs:nodejs /app/dist/worker.cjs ./worker.cjs
 
 USER nextjs
 EXPOSE 3000

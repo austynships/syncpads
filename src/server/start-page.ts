@@ -5,7 +5,7 @@
  */
 import { and, asc, eq, inArray, max, sql } from "drizzle-orm";
 import { db, type Db } from "@/db";
-import { groups, items, pages, userSettings, type Wallpaper } from "@/db/schema";
+import { groups, itemEnrichment, items, pages, userSettings, type Wallpaper } from "@/db/schema";
 import { sanitizeNoteHtml } from "@/lib/sanitize";
 import type {
   GroupDTO,
@@ -18,6 +18,8 @@ import type {
 } from "@/lib/start-page-types";
 import { normalizeUrl } from "@/lib/url";
 import { planImport, type BookmarkNode, type ImportLink } from "@/lib/bookmarks";
+import { aiAvailability } from "./enrichment/ai";
+import { enqueue, requeueForAi } from "./enrichment/queue";
 
 type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
 
@@ -124,11 +126,26 @@ export async function getState(userId: string): Promise<StateDTO> {
     .from(items)
     .where(and(eq(items.userId, userId), eq(items.status, "active")))
     .orderBy(asc(items.position));
+  const enrichmentRows = await db
+    .select({ itemId: itemEnrichment.itemId, summary: itemEnrichment.summary, tags: itemEnrichment.tags })
+    .from(itemEnrichment)
+    .where(eq(itemEnrichment.userId, userId));
+  const enrichment = new Map(enrichmentRows.map((e) => [e.itemId, e]));
 
   const itemsByGroup = new Map<string, ItemDTO[]>();
   for (const i of itemRows) {
     const list = itemsByGroup.get(i.groupId) ?? [];
-    list.push({ id: i.id, type: i.type, url: i.url, title: i.title, noteBody: i.noteBody, position: i.position });
+    const e = enrichment.get(i.id);
+    list.push({
+      id: i.id,
+      type: i.type,
+      url: i.url,
+      title: i.title,
+      noteBody: i.noteBody,
+      position: i.position,
+      summary: e?.summary ?? null,
+      tags: e?.tags ?? null,
+    });
     itemsByGroup.set(i.groupId, list);
   }
   const groupsByPage = new Map<string, GroupDTO[]>();
@@ -143,6 +160,8 @@ export async function getState(userId: string): Promise<StateDTO> {
     settings: {
       theme: settingsRow?.theme ?? "system",
       wallpaper: settingsRow?.wallpaper ?? { type: "none" },
+      aiEnabled: settingsRow?.aiEnabled ?? false,
+      aiAvailable: aiAvailability(),
     },
     pages: pageRows.map(
       (p): PageDTO => ({
@@ -159,9 +178,11 @@ export async function getState(userId: string): Promise<StateDTO> {
 
 // ---------- settings ----------
 
-export function updateSettings(userId: string, input: { theme?: Theme; wallpaper?: Wallpaper }) {
+export function updateSettings(userId: string, input: { theme?: Theme; wallpaper?: Wallpaper; aiEnabled?: boolean }) {
   return write(userId, async (tx) => {
     await tx.update(userSettings).set(input).where(eq(userSettings.userId, userId));
+    // Turning smart features on: summarize and embed what's already saved.
+    if (input.aiEnabled) await requeueForAi(tx, userId);
     return {};
   });
 }
@@ -249,17 +270,19 @@ export function createGroup(
       const url = normalizeUrl(link.url);
       if (url) links.push({ url, title: link.title?.trim().slice(0, 512) || null });
     }
-    await insertLinks(tx, userId, id, links, "user");
+    await enqueue(tx, userId, await insertLinks(tx, userId, id, links, "user"));
     return { id, added: links.length, skipped: (input.links?.length ?? 0) - links.length };
   });
 }
 
+/** Inserts links at the end of a group and returns their ids. */
 async function insertLinks(tx: Tx, userId: string, groupId: string, links: ImportLink[], source: "user" | "import") {
+  const ids = links.map(() => crypto.randomUUID());
   // Chunked so one statement never gets too large.
   for (let start = 0; start < links.length; start += 500) {
     await tx.insert(items).values(
       links.slice(start, start + 500).map((link, i) => ({
-        id: crypto.randomUUID(),
+        id: ids[start + i],
         userId,
         groupId,
         type: "link" as const,
@@ -271,6 +294,7 @@ async function insertLinks(tx: Tx, userId: string, groupId: string, links: Impor
       })),
     );
   }
+  return ids;
 }
 
 // ---------- import (SP-9) ----------
@@ -301,7 +325,7 @@ export async function importBookmarks(userId: string, tree: BookmarkNode[]) {
       for (const [position, group] of page.groups.entries()) {
         const groupId = crypto.randomUUID();
         await tx.insert(groups).values({ id: groupId, userId, pageId, name: group.name, position, layout: "list" });
-        await insertLinks(tx, userId, groupId, group.links, "import");
+        await enqueue(tx, userId, await insertLinks(tx, userId, groupId, group.links, "import"));
       }
     }
     return {
@@ -393,6 +417,7 @@ export function createItem(userId: string, input: ItemInput) {
       source: "user",
       status: "active",
     });
+    await enqueue(tx, userId, [id]);
     const [row] = await tx.select().from(items).where(eq(items.id, id));
     const item: ItemDTO = {
       id,
@@ -422,6 +447,8 @@ export function updateItem(
     if (Object.keys(fields).length > 0) {
       await tx.update(items).set(fields).where(and(eq(items.id, itemId), eq(items.userId, userId)));
     }
+    // A new address or new note text means fetching and summarizing again.
+    if (fields.url !== undefined || fields.noteBody !== undefined) await enqueue(tx, userId, [itemId]);
     const [row] = await tx.select().from(items).where(eq(items.id, itemId));
     return { item: { id: row.id, type: row.type, url: row.url, title: row.title, noteBody: row.noteBody, position: row.position } };
   });
