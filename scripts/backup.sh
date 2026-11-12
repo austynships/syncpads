@@ -27,3 +27,4 @@ docker run --rm \
 
 rm -f "$FILE"
 echo "==> Backup done: mariadb/$(basename "$FILE")"
+

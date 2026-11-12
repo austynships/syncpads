@@ -27,6 +27,22 @@ The start page your AI can use. Product requirements: [syncpads.md](./syncpads.m
 
 There is no magic-link or social sign-in, by design (SP-1).
 
+## What's in Phase 2 (start page)
+
+| Feature | Notes |
+| --- | --- |
+| Pages (SP-3) | Tabs: click to switch, drag to reorder, double-click to rename. Add with **+**. Column count, rename and delete are in ⚙ Settings. |
+| Groups and links (SP-4) | Add, edit and delete. Drag links between groups with the ⠿ handle; drag groups by their handle. **Paste a URL anywhere** to add it to the first group. Deleting shows **Undo**. |
+| Layouts and themes (SP-5) | List or tiles per group; light/dark/system theme; wallpapers (built-in gradients, colors, or an https image URL). |
+| Notes (SP-11) | Rich-text notes inside groups (Tiptap). Stored as sanitized HTML in `items.note_body`. |
+| Fast load (SP-2) | `/app` renders from a localStorage cache first, then syncs. Works offline from the cache. |
+| Sync (SP-6) | Every write increments `user_settings.revision`. Clients poll `/api/state/revision` every 5 s and refetch when it changes. |
+| Favicons | Fetched by our server and cached in the `favicons` table, so no third party sees users' links. Uses `src/server/safe-fetch.ts`, which blocks private IPs (SSRF), odd ports, big responses and slow servers. |
+
+API routes (all require sign-in, writes must come from the same origin): `GET /api/state`, `GET /api/state/revision`, `PATCH /api/settings`, `POST /api/pages`, `PATCH|DELETE /api/pages/:id`, `PUT /api/pages/order`, `POST /api/groups`, `PATCH|DELETE /api/groups/:id`, `PUT /api/groups/order`, `POST /api/items`, `PATCH|DELETE /api/items/:id`, `POST /api/items/:id/restore`, `PUT /api/items/order`, `GET /api/favicon?host=`. The data logic lives in `src/server/start-page.ts`.
+
+Free plan limits are not enforced yet (Phase 6).
+
 ## Run locally
 
 Requirements: Node.js 22 or newer, and Docker Desktop (for MariaDB and Redis).

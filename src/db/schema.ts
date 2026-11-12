@@ -10,6 +10,7 @@
  */
 import { sql } from "drizzle-orm";
 import {
+  bigint,
   boolean,
   datetime,
   index,
@@ -21,7 +22,7 @@ import {
   text,
   varchar,
 } from "drizzle-orm/mysql-core";
-import { EMBEDDING_DIMENSIONS, json, vector } from "./types";
+import { EMBEDDING_DIMENSIONS, json, mediumblob, vector } from "./types";
 
 // ---------- Shared column helpers ----------
 
@@ -125,8 +126,8 @@ export const pages = mysqlTable(
     userId: userId(),
     name: varchar("name", { length: 255 }).notNull(),
     position: int("position").notNull().default(0),
-    // Page-level arrangement; allowed values are decided in Phase 2.
-    layout: varchar("layout", { length: 32 }).notNull().default("default"),
+    // Column count for groups on this page: "auto" (fits the screen) or "1".."5".
+    layout: varchar("layout", { length: 32 }).notNull().default("auto"),
     hiddenFromAgents: boolean("hidden_from_agents").notNull().default(false),
     // Secret for the private .md / llms.txt URL (SP-19). Rotating = replacing it.
     mdToken: varchar("md_token", { length: 64 }).unique(),
@@ -189,6 +190,7 @@ export const items = mysqlTable(
     type: mysqlEnum("type", ["link", "note"]).notNull(),
     url: varchar("url", { length: 2048 }),
     title: varchar("title", { length: 512 }),
+    // Notes: sanitized HTML from the rich-text editor (converted to Markdown for agents in Phase 5).
     noteBody: mediumtext("note_body"),
     position: int("position").notNull().default(0),
     source: mysqlEnum("source", ["user", "agent", "import"]).notNull().default("user"),
@@ -248,8 +250,8 @@ export const itemEmbeddings = mysqlTable(
 );
 
 export type RssWidgetConfig = { feedUrl: string };
-export type NotesWidgetConfig = { body?: string };
 
+// Notes are `items` rows (type = note) shown inside groups, so widgets are RSS only.
 export const widgets = mysqlTable(
   "widgets",
   {
@@ -258,8 +260,8 @@ export const widgets = mysqlTable(
     pageId: varchar("page_id", { length: 36 })
       .notNull()
       .references(() => pages.id, { onDelete: "cascade" }),
-    type: mysqlEnum("type", ["notes", "rss"]).notNull(),
-    config: json<RssWidgetConfig | NotesWidgetConfig>("config"),
+    type: mysqlEnum("type", ["rss"]).notNull(),
+    config: json<RssWidgetConfig>("config"),
     position: int("position").notNull().default(0),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
@@ -329,3 +331,38 @@ export const activityLog = mysqlTable(
   },
   (t) => [index("activity_log_user_created_idx").on(t.userId, t.createdAt)],
 );
+
+// ---------- Phase 2 additions ----------
+
+export type Wallpaper =
+  | { type: "none" }
+  | { type: "preset"; value: string } // key of a built-in gradient
+  | { type: "color"; value: string } // #rrggbb
+  | { type: "url"; value: string }; // https image URL, loaded by the user's browser
+
+/**
+ * One row per user: appearance settings plus a revision counter for sync.
+ * Every change to a user's pages, groups or items increments `revision`;
+ * clients poll it and refetch when it changes (SP-6).
+ */
+export const userSettings = mysqlTable("user_settings", {
+  userId: varchar("user_id", { length: 36 })
+    .primaryKey()
+    .references(() => users.id, { onDelete: "cascade" }),
+  theme: mysqlEnum("theme", ["system", "light", "dark"]).notNull().default("system"),
+  wallpaper: json<Wallpaper>("wallpaper"),
+  revision: bigint("revision", { mode: "number", unsigned: true }).notNull().default(0),
+  updatedAt: updatedAt(),
+});
+
+/**
+ * Shared favicon cache, keyed by host. Not user data: it holds only public
+ * site icons, so it has no user_id (allowlisted in the account deletion test).
+ */
+export const favicons = mysqlTable("favicons", {
+  host: varchar("host", { length: 255 }).primaryKey(),
+  status: mysqlEnum("status", ["ok", "missing"]).notNull(),
+  contentType: varchar("content_type", { length: 100 }),
+  data: mediumblob("data"),
+  fetchedAt: datetime("fetched_at", { mode: "date", fsp: 3 }).notNull(),
+});

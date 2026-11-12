@@ -23,3 +23,4 @@ docker compose -f docker-compose.prod.yml ps
 echo
 echo "Done. Follow app logs with:"
 echo "  docker compose -f docker-compose.prod.yml logs -f app"
+

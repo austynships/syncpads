@@ -1,0 +1,27 @@
+# systemd service: keeps SyncPads running on a cPanel server and restarts it
+# after crashes and reboots. Installed by deploy/cpanel/setup.sh to
+# /etc/systemd/system/syncpads.service. __USER__ is the cPanel account name.
+[Unit]
+Description=SyncPads web app
+After=network.target mariadb.service redis.service
+Wants=mariadb.service redis.service
+
+[Service]
+Type=simple
+User=__USER__
+WorkingDirectory=/home/__USER__/syncpads/.next/standalone
+EnvironmentFile=/home/__USER__/syncpads/.env
+Environment=NODE_ENV=production
+Environment=PORT=3000
+Environment=HOSTNAME=127.0.0.1
+Environment=TRUST_PROXY=true
+Environment=RUN_MIGRATIONS_ON_START=true
+ExecStart=/opt/cpanel/ea-nodejs22/bin/node server.js
+Restart=always
+RestartSec=5
+# Basic hardening
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

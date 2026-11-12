@@ -25,3 +25,4 @@ jobs:
           key: ${{ secrets.VPS_SSH_KEY }}
           command_timeout: 20m
           script: cd ~/syncpads && ./scripts/deploy.sh
+

@@ -1,0 +1,392 @@
+/**
+ * Start page data access (Phase 2). Every function takes the signed-in
+ * user's id and only ever touches that user's rows.
+ * Every write bumps user_settings.revision in the same transaction (SP-6 sync).
+ */
+import { and, asc, eq, inArray, max, sql } from "drizzle-orm";
+import { db, type Db } from "@/db";
+import { groups, items, pages, userSettings, type Wallpaper } from "@/db/schema";
+import { sanitizeNoteHtml } from "@/lib/sanitize";
+import type {
+  GroupDTO,
+  GroupLayout,
+  ItemDTO,
+  PageDTO,
+  PageLayout,
+  StateDTO,
+  Theme,
+} from "@/lib/start-page-types";
+import { normalizeUrl } from "@/lib/url";
+
+type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
+
+export class NotFoundError extends Error {
+  constructor(what: string) {
+    super(`${what} not found`);
+  }
+}
+export class InvalidInputError extends Error {}
+
+// ---------- helpers ----------
+
+async function bumpRevision(tx: Tx, userId: string): Promise<number> {
+  await tx
+    .update(userSettings)
+    .set({ revision: sql`${userSettings.revision} + 1` })
+    .where(eq(userSettings.userId, userId));
+  const [row] = await tx
+    .select({ revision: userSettings.revision })
+    .from(userSettings)
+    .where(eq(userSettings.userId, userId));
+  return row?.revision ?? 0;
+}
+
+function affected(result: unknown): number {
+  return (result as [{ affectedRows: number }])[0].affectedRows;
+}
+
+async function assertPage(tx: Tx, userId: string, pageId: string) {
+  const [row] = await tx
+    .select({ id: pages.id })
+    .from(pages)
+    .where(and(eq(pages.id, pageId), eq(pages.userId, userId)));
+  if (!row) throw new NotFoundError("Page");
+}
+
+async function assertGroup(tx: Tx, userId: string, groupId: string) {
+  const [row] = await tx
+    .select({ id: groups.id })
+    .from(groups)
+    .where(and(eq(groups.id, groupId), eq(groups.userId, userId)));
+  if (!row) throw new NotFoundError("Group");
+}
+
+/** Run a write in a transaction and return its result plus the new revision. */
+async function write<T extends object>(userId: string, fn: (tx: Tx) => Promise<T>) {
+  await ensureUserSetup(userId);
+  return db.transaction(async (tx) => {
+    const result = await fn(tx);
+    const revision = await bumpRevision(tx, userId);
+    return { ...result, revision };
+  });
+}
+
+// ---------- setup and reads ----------
+
+/**
+ * Makes sure the user has a settings row and at least one page.
+ * New users get a "Home" page with an empty "Favorites" group.
+ * The settings row is locked so two tabs can't both create a first page.
+ */
+export async function ensureUserSetup(userId: string) {
+  // Fast path: already set up (every request after the first).
+  const [ready] = await db
+    .select({ id: pages.id })
+    .from(pages)
+    .innerJoin(userSettings, eq(userSettings.userId, pages.userId))
+    .where(eq(pages.userId, userId))
+    .limit(1);
+  if (ready) return;
+
+  // Create the settings row on its own first. Doing this inside the locking
+  // transaction deadlocks when two tabs open at the same moment.
+  await db.insert(userSettings).ignore().values({ userId, wallpaper: { type: "none" } });
+
+  await db.transaction(async (tx) => {
+    await tx.select().from(userSettings).where(eq(userSettings.userId, userId)).for("update");
+    const [existing] = await tx.select({ id: pages.id }).from(pages).where(eq(pages.userId, userId)).limit(1);
+    if (existing) return;
+
+    const pageId = crypto.randomUUID();
+    await tx.insert(pages).values({ id: pageId, userId, name: "Home", position: 0 });
+    await tx.insert(groups).values({ userId, pageId, name: "Favorites", position: 0, layout: "tiles" });
+  });
+}
+
+export async function getRevision(userId: string): Promise<number> {
+  const [row] = await db
+    .select({ revision: userSettings.revision })
+    .from(userSettings)
+    .where(eq(userSettings.userId, userId));
+  return row?.revision ?? 0;
+}
+
+/** Everything the start page needs, in one response. Inbox and trashed items are excluded. */
+export async function getState(userId: string): Promise<StateDTO> {
+  await ensureUserSetup(userId);
+
+  const [settingsRow] = await db.select().from(userSettings).where(eq(userSettings.userId, userId));
+  const pageRows = await db.select().from(pages).where(eq(pages.userId, userId)).orderBy(asc(pages.position));
+  const groupRows = await db.select().from(groups).where(eq(groups.userId, userId)).orderBy(asc(groups.position));
+  const itemRows = await db
+    .select()
+    .from(items)
+    .where(and(eq(items.userId, userId), eq(items.status, "active")))
+    .orderBy(asc(items.position));
+
+  const itemsByGroup = new Map<string, ItemDTO[]>();
+  for (const i of itemRows) {
+    const list = itemsByGroup.get(i.groupId) ?? [];
+    list.push({ id: i.id, type: i.type, url: i.url, title: i.title, noteBody: i.noteBody, position: i.position });
+    itemsByGroup.set(i.groupId, list);
+  }
+  const groupsByPage = new Map<string, GroupDTO[]>();
+  for (const g of groupRows) {
+    const list = groupsByPage.get(g.pageId) ?? [];
+    list.push({ id: g.id, name: g.name, layout: g.layout, position: g.position, items: itemsByGroup.get(g.id) ?? [] });
+    groupsByPage.set(g.pageId, list);
+  }
+
+  return {
+    revision: settingsRow?.revision ?? 0,
+    settings: {
+      theme: settingsRow?.theme ?? "system",
+      wallpaper: settingsRow?.wallpaper ?? { type: "none" },
+    },
+    pages: pageRows.map(
+      (p): PageDTO => ({
+        id: p.id,
+        name: p.name,
+        layout: (p.layout as PageLayout) ?? "auto",
+        position: p.position,
+        hiddenFromAgents: p.hiddenFromAgents,
+        groups: groupsByPage.get(p.id) ?? [],
+      }),
+    ),
+  };
+}
+
+// ---------- settings ----------
+
+export function updateSettings(userId: string, input: { theme?: Theme; wallpaper?: Wallpaper }) {
+  return write(userId, async (tx) => {
+    await tx.update(userSettings).set(input).where(eq(userSettings.userId, userId));
+    return {};
+  });
+}
+
+// ---------- pages ----------
+
+export function createPage(userId: string, input: { name: string }) {
+  return write(userId, async (tx) => {
+    const [{ value }] = await tx.select({ value: max(pages.position) }).from(pages).where(eq(pages.userId, userId));
+    const id = crypto.randomUUID();
+    await tx.insert(pages).values({ id, userId, name: input.name, position: (value ?? -1) + 1 });
+    // Every page starts with one group so there's somewhere to add links.
+    await tx.insert(groups).values({ userId, pageId: id, name: "Links", position: 0 });
+    return { id };
+  });
+}
+
+export function updatePage(
+  userId: string,
+  pageId: string,
+  input: { name?: string; layout?: PageLayout; hiddenFromAgents?: boolean },
+) {
+  return write(userId, async (tx) => {
+    const result = await tx.update(pages).set(input).where(and(eq(pages.id, pageId), eq(pages.userId, userId)));
+    if (affected(result) === 0) await assertPage(tx, userId, pageId); // 0 rows can also mean "no change"
+    return {};
+  });
+}
+
+export function deletePage(userId: string, pageId: string) {
+  return write(userId, async (tx) => {
+    await assertPage(tx, userId, pageId);
+    const [{ count }] = await tx
+      .select({ count: sql<number>`count(*)` })
+      .from(pages)
+      .where(eq(pages.userId, userId));
+    if (Number(count) <= 1) throw new InvalidInputError("You need at least one page.");
+    await tx.delete(pages).where(and(eq(pages.id, pageId), eq(pages.userId, userId)));
+    return {};
+  });
+}
+
+export function reorderPages(userId: string, ids: string[]) {
+  return write(userId, async (tx) => {
+    const owned = await tx
+      .select({ id: pages.id })
+      .from(pages)
+      .where(and(eq(pages.userId, userId), inArray(pages.id, ids)));
+    if (owned.length !== new Set(ids).size) throw new NotFoundError("Page");
+    for (const [position, id] of ids.entries()) {
+      await tx.update(pages).set({ position }).where(and(eq(pages.id, id), eq(pages.userId, userId)));
+    }
+    return {};
+  });
+}
+
+// ---------- groups ----------
+
+export function createGroup(userId: string, input: { pageId: string; name: string; layout?: GroupLayout }) {
+  return write(userId, async (tx) => {
+    await assertPage(tx, userId, input.pageId);
+    const [{ value }] = await tx
+      .select({ value: max(groups.position) })
+      .from(groups)
+      .where(and(eq(groups.userId, userId), eq(groups.pageId, input.pageId)));
+    const id = crypto.randomUUID();
+    await tx.insert(groups).values({
+      id,
+      userId,
+      pageId: input.pageId,
+      name: input.name,
+      layout: input.layout ?? "list",
+      position: (value ?? -1) + 1,
+    });
+    return { id };
+  });
+}
+
+export function updateGroup(userId: string, groupId: string, input: { name?: string; layout?: GroupLayout }) {
+  return write(userId, async (tx) => {
+    const result = await tx.update(groups).set(input).where(and(eq(groups.id, groupId), eq(groups.userId, userId)));
+    if (affected(result) === 0) await assertGroup(tx, userId, groupId);
+    return {};
+  });
+}
+
+export function deleteGroup(userId: string, groupId: string) {
+  return write(userId, async (tx) => {
+    await assertGroup(tx, userId, groupId);
+    await tx.delete(groups).where(and(eq(groups.id, groupId), eq(groups.userId, userId)));
+    return {};
+  });
+}
+
+/** Sets the order of groups on a page. Can also move groups onto this page. */
+export function reorderGroups(userId: string, pageId: string, ids: string[]) {
+  return write(userId, async (tx) => {
+    await assertPage(tx, userId, pageId);
+    const owned = await tx
+      .select({ id: groups.id })
+      .from(groups)
+      .where(and(eq(groups.userId, userId), inArray(groups.id, ids)));
+    if (owned.length !== new Set(ids).size) throw new NotFoundError("Group");
+    for (const [position, id] of ids.entries()) {
+      await tx.update(groups).set({ position, pageId }).where(and(eq(groups.id, id), eq(groups.userId, userId)));
+    }
+    return {};
+  });
+}
+
+// ---------- items (links and notes) ----------
+
+type ItemInput = {
+  groupId: string;
+  type: "link" | "note";
+  url?: string | null;
+  title?: string | null;
+  noteBody?: string | null;
+};
+
+function cleanItemFields(input: { type?: "link" | "note"; url?: string | null; title?: string | null; noteBody?: string | null }) {
+  const out: { url?: string | null; title?: string | null; noteBody?: string | null } = {};
+  if (input.url !== undefined) {
+    if (input.url === null || input.url === "") {
+      out.url = null;
+    } else {
+      const url = normalizeUrl(input.url);
+      if (!url) throw new InvalidInputError("That doesn't look like a valid web address.");
+      out.url = url;
+    }
+  }
+  if (input.title !== undefined) out.title = input.title?.trim() || null;
+  if (input.noteBody !== undefined) out.noteBody = input.noteBody === null ? null : sanitizeNoteHtml(input.noteBody);
+  return out;
+}
+
+export function createItem(userId: string, input: ItemInput) {
+  return write(userId, async (tx) => {
+    await assertGroup(tx, userId, input.groupId);
+    const fields = cleanItemFields(input);
+    if (input.type === "link" && !fields.url) throw new InvalidInputError("A link needs a web address.");
+
+    const [{ value }] = await tx
+      .select({ value: max(items.position) })
+      .from(items)
+      .where(and(eq(items.userId, userId), eq(items.groupId, input.groupId)));
+    const id = crypto.randomUUID();
+    await tx.insert(items).values({
+      id,
+      userId,
+      groupId: input.groupId,
+      type: input.type,
+      ...fields,
+      position: (value ?? -1) + 1,
+      source: "user",
+      status: "active",
+    });
+    const [row] = await tx.select().from(items).where(eq(items.id, id));
+    const item: ItemDTO = {
+      id,
+      type: row.type,
+      url: row.url,
+      title: row.title,
+      noteBody: row.noteBody,
+      position: row.position,
+    };
+    return { item };
+  });
+}
+
+export function updateItem(
+  userId: string,
+  itemId: string,
+  input: { url?: string | null; title?: string | null; noteBody?: string | null },
+) {
+  return write(userId, async (tx) => {
+    const [existing] = await tx
+      .select({ type: items.type })
+      .from(items)
+      .where(and(eq(items.id, itemId), eq(items.userId, userId)));
+    if (!existing) throw new NotFoundError("Item");
+    const fields = cleanItemFields(input);
+    if (existing.type === "link" && fields.url === null) throw new InvalidInputError("A link needs a web address.");
+    if (Object.keys(fields).length > 0) {
+      await tx.update(items).set(fields).where(and(eq(items.id, itemId), eq(items.userId, userId)));
+    }
+    const [row] = await tx.select().from(items).where(eq(items.id, itemId));
+    return { item: { id: row.id, type: row.type, url: row.url, title: row.title, noteBody: row.noteBody, position: row.position } };
+  });
+}
+
+/** Moves an item to the trash; restoreItem undoes it. */
+export function deleteItem(userId: string, itemId: string) {
+  return setItemStatus(userId, itemId, "trashed");
+}
+
+export function restoreItem(userId: string, itemId: string) {
+  return setItemStatus(userId, itemId, "active");
+}
+
+function setItemStatus(userId: string, itemId: string, status: "active" | "trashed") {
+  return write(userId, async (tx) => {
+    const [existing] = await tx
+      .select({ id: items.id })
+      .from(items)
+      .where(and(eq(items.id, itemId), eq(items.userId, userId)));
+    if (!existing) throw new NotFoundError("Item");
+    await tx.update(items).set({ status }).where(and(eq(items.id, itemId), eq(items.userId, userId)));
+    return {};
+  });
+}
+
+/** Sets the order of items in a group, moving any listed item into that group. */
+export function reorderItems(userId: string, groupId: string, ids: string[]) {
+  return write(userId, async (tx) => {
+    await assertGroup(tx, userId, groupId);
+    if (ids.length > 0) {
+      const owned = await tx
+        .select({ id: items.id })
+        .from(items)
+        .where(and(eq(items.userId, userId), inArray(items.id, ids)));
+      if (owned.length !== new Set(ids).size) throw new NotFoundError("Item");
+    }
+    for (const [position, id] of ids.entries()) {
+      await tx.update(items).set({ position, groupId }).where(and(eq(items.id, id), eq(items.userId, userId)));
+    }
+    return {};
+  });
+}

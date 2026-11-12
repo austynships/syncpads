@@ -20,6 +20,13 @@ export const json = <T>(name: string) =>
 /** Embedding size used across the app. Changing it needs a migration. */
 export const EMBEDDING_DIMENSIONS = 1536;
 
+/** MEDIUMBLOB (binary up to 16 MB), read and written as a Buffer. */
+export const mediumblob = customType<{ data: Buffer; driverData: Buffer }>({
+  dataType() {
+    return "mediumblob";
+  },
+});
+
 /**
  * MariaDB 11.8 VECTOR(n) column.
  * Reads come back as raw float32 bytes and are decoded to number[].

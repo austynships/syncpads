@@ -77,3 +77,4 @@ volumes:
   caddy-config:
   mariadb-data:
   redis-data:
+

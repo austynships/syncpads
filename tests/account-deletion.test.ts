@@ -10,7 +10,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 const url = process.env.TEST_DATABASE_URL;
 
 // Tables that intentionally have no user_id.
-const NOT_USER_OWNED = new Set(["users", "verifications", "__drizzle_migrations"]);
+const NOT_USER_OWNED = new Set(["users", "verifications", "favicons", "__drizzle_migrations"]);
 
 describe.skipIf(!url)("account deletion", () => {
   let mod: typeof import("@/db");
@@ -62,6 +62,7 @@ describe.skipIf(!url)("account deletion", () => {
     const now = new Date(Date.now() + 86_400_000);
 
     await db.insert(s.users).values({ id: userId, email: `${userId}@test.local`, name: "Test" });
+    await db.insert(s.userSettings).values({ userId, theme: "dark", wallpaper: { type: "none" } });
     await db.insert(s.sessions).values({ id: crypto.randomUUID(), userId, token: userId, expiresAt: now });
     await db.insert(s.accounts).values({
       id: crypto.randomUUID(), userId, accountId: userId, providerId: "credential", password: "x",
