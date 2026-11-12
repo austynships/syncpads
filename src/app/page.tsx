@@ -19,6 +19,9 @@ import {
   IconX,
 } from "@/components/icons";
 import { getSession } from "@/lib/session";
+import { billingAvailable } from "@/server/billing";
+import { getPlan } from "@/server/plans";
+import { Plans } from "./pricing/plans";
 
 /*
  * Positioning: SyncPads is the place your AI goes to understand how you work.
@@ -135,6 +138,7 @@ const startPage = [
 
 export default async function Home() {
   const session = await getSession();
+  const plan = session ? await getPlan(session.user.id) : null;
   const primary = session
     ? { href: "/app", label: "Open your workspace" }
     : { href: "/signup", label: "Create your workspace" };
@@ -149,9 +153,9 @@ export default async function Home() {
             <a href="#how-it-works" className="btn-ghost hidden sm:inline-flex">
               How it works
             </a>
-            <Link href="/pricing" className="btn-ghost hidden sm:inline-flex">
+            <a href="#pricing" className="btn-ghost hidden sm:inline-flex">
               Pricing
-            </Link>
+            </a>
             {session ? (
               // Plain <a>: a full page load, so Clarity (public pages only) doesn't follow into the app.
               <a href="/app" className="btn-primary">
@@ -329,6 +333,30 @@ export default async function Home() {
                 <p className="mt-1.5 text-sm leading-relaxed text-slate-600">{body}</p>
               </div>
             ))}
+          </div>
+        </section>
+
+        {/* Pricing (the same cards as /pricing) */}
+        <section id="pricing" className="scroll-mt-16 border-t border-slate-900/5 bg-white">
+          <div className="mx-auto max-w-5xl px-4 py-20 sm:px-6 lg:py-24">
+            <div className="text-center">
+              <p className="text-sm font-semibold uppercase tracking-wider text-sync-600">Pricing</p>
+              <h2 className="mx-auto mt-3 max-w-2xl text-balance text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">
+                Start free. Upgrade when your AI relies on it.
+              </h2>
+              <p className="mx-auto mt-3 max-w-xl text-lg text-slate-600">
+                Organize your work on Free. Go Pro to let every AI you use add to it and remember what you decide.
+              </p>
+            </div>
+            <div className="mt-12">
+              <Plans signedIn={Boolean(session)} plan={plan} available={billingAvailable()} />
+            </div>
+            <p className="mt-8 text-center text-sm text-slate-500">
+              Questions about plans?{" "}
+              <Link href="/pricing" className="font-semibold text-slate-900 underline decoration-sync-500 underline-offset-2">
+                See pricing details
+              </Link>
+            </p>
           </div>
         </section>
 
