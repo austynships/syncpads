@@ -41,6 +41,9 @@ services:
       # Smart features (optional): without these keys, summaries and search by meaning stay off.
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       VOYAGE_API_KEY: ${VOYAGE_API_KEY:-}
+      # Plans and billing (optional until set up).
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
     depends_on:
       mariadb:
         condition: service_healthy
@@ -61,6 +64,8 @@ services:
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       VOYAGE_API_KEY: ${VOYAGE_API_KEY:-}
       ENRICH_MODEL: ${ENRICH_MODEL:-}
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+      BETTER_AUTH_URL: https://${APP_DOMAIN}
     depends_on:
       app:
         condition: service_started

@@ -59,8 +59,13 @@ export default function PrivacyPage() {
             requests.
           </p>
           <p>
+            <strong>Payments.</strong> If you subscribe to Pro, Stripe collects your payment details on its own pages; they
+            never reach our servers. We store your Stripe customer ID and your subscription&apos;s status, billing period
+            and renewal date, so we know which plan you&apos;re on.
+          </p>
+          <p>
             <strong>Analytics on our public pages (only with your consent).</strong> If you accept analytics cookies, our
-            public pages (home, sign-in, sign-up, this policy and our terms) use Microsoft Clarity to record how visitors
+            public pages (home, pricing, sign-in, sign-up, this policy and our terms) use Microsoft Clarity to record how visitors
             use them: clicks, scrolling and what&apos;s on screen. Clarity never runs inside your workspace or account pages.
           </p>
         </Section>
@@ -80,6 +85,7 @@ export default function PrivacyPage() {
           <ul>
             <li><strong>Hostinger</strong> hosts our servers and database, located in the United States.</li>
             <li><strong>Resend</strong> sends our account emails (your email address and the message).</li>
+            <li><strong>Stripe</strong> processes Pro payments (your name, email address and payment details).</li>
             <li><strong>Anthropic</strong> writes summaries and tags, only if you turned on smart features (the text of pages you save).</li>
             <li><strong>Voyage AI</strong> powers search by meaning, only if you turned on smart features (page text, summaries and your search words).</li>
             <li><strong>Microsoft</strong> provides Clarity analytics on our public pages, only if you accept analytics cookies.</li>
@@ -119,7 +125,10 @@ export default function PrivacyPage() {
             <li>
               Items you delete go to the trash so you can undo the deletion. They stay there until you delete your account.
             </li>
-            <li>When you delete your account, your data is removed from our live database immediately.</li>
+            <li>
+              When you delete your account, your data is removed from our live database immediately, and any Pro
+              subscription is cancelled. Stripe keeps records of past payments as the law requires.
+            </li>
             <li>
               Backups: our nightly database backups are kept for 14 days, and our hosting provider keeps its own backups of
               the server, so deleted data can remain in a backup for a limited time before it is overwritten.

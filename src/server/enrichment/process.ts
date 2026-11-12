@@ -9,7 +9,7 @@
  */
 import { eq, sql } from "drizzle-orm";
 import type { Db } from "@/db";
-import { itemEnrichment, items, userSettings } from "@/db/schema";
+import { itemEnrichment, items, userSettings, users } from "@/db/schema";
 import { upsertEmbedding } from "@/db/vector";
 import { BlockedUrlError, safeFetch } from "@/server/safe-fetch";
 import { aiAvailability, embed, embeddingText, EMBEDDING_MODEL, RetryableError, summarizePage, type Summary } from "./ai";
@@ -79,8 +79,22 @@ export async function processJob(db: Db, job: Job, deps: Deps = defaultDeps): Pr
     let summarizedAt = needsFetch ? null : row.summarizedAt;
     let embeddedAt = needsFetch ? null : row.embeddedAt;
 
+    // Plans (SP-20): Free gets summaries for its first 100 links; embeddings (search by meaning) are Pro.
+    const [owner] = await db.select({ plan: users.plan }).from(users).where(eq(users.id, item.userId));
+    const pro = owner?.plan === "pro";
+    const underSummaryCap =
+      pro ||
+      Number(
+        (
+          await db
+            .select({ n: sql<number>`COUNT(*)` })
+            .from(itemEnrichment)
+            .where(sql`${itemEnrichment.userId} = ${item.userId} AND ${itemEnrichment.summary} IS NOT NULL`)
+        )[0]?.n ?? 0,
+      ) < 100;
+
     if (settings?.aiEnabled) {
-      if (item.type === "link" && available.summaries && !summarizedAt && text.length >= 200) {
+      if (item.type === "link" && available.summaries && underSummaryCap && !summarizedAt && text.length >= 200) {
         summary = await deps.summarize({ url: item.url ?? "", title: title ?? item.title, description, text });
         summarizedAt = new Date();
       }
@@ -91,7 +105,7 @@ export async function processJob(db: Db, job: Job, deps: Deps = defaultDeps): Pr
         tags: summary?.tags ?? [],
         text,
       });
-      if (available.embeddings && !embeddedAt && searchable.trim()) {
+      if (pro && available.embeddings && !embeddedAt && searchable.trim()) {
         const [vector] = await deps.embed([searchable], "document");
         await upsertEmbedding(db, { itemId: item.id, userId: item.userId, model: EMBEDDING_MODEL, embedding: vector });
         embeddedAt = new Date();

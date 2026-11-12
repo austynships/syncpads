@@ -3,6 +3,7 @@ import { Logo } from "@/components/brand";
 import { IconArrowLeft } from "@/components/icons";
 import { SessionKeepAlive } from "@/components/session-keep-alive";
 import { requireSession } from "@/lib/session";
+import { BillingCard } from "./billing-card";
 import { DeleteAccountForm } from "./delete-account-form";
 
 export const metadata = { title: "Account settings" };
@@ -36,11 +37,13 @@ export default async function SettingsPage() {
           </dl>
         </section>
 
+        <BillingCard />
+
         <section className="mt-6 rounded-2xl border border-red-200 bg-white p-6 shadow-sm">
           <h2 className="font-semibold text-red-700">Delete account</h2>
           <p className="mb-5 mt-1.5 text-sm leading-relaxed text-slate-600">
-            This permanently deletes your account and all of your pages, links and notes right away. It can&apos;t be
-            undone.
+            This permanently deletes your account and all of your pages, links and notes right away, and ends any Pro
+            subscription so you&apos;re not charged again. It can&apos;t be undone.
           </p>
           <DeleteAccountForm />
         </section>

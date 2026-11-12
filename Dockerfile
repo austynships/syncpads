@@ -36,6 +36,8 @@ COPY --from=builder --chown=nextjs:nodejs /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/drizzle ./drizzle
 # Enrichment worker (Phase 4): one bundled file, run by the "worker" service.
 COPY --from=builder --chown=nextjs:nodejs /app/dist/worker.cjs ./worker.cjs
+# One-time Stripe setup (Phase 6), run inside the worker container.
+COPY --from=builder --chown=nextjs:nodejs /app/dist/stripe-setup.cjs ./stripe-setup.cjs
 
 USER nextjs
 EXPOSE 3000

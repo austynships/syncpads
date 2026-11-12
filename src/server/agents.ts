@@ -44,6 +44,28 @@ export async function visiblePages(ctx: Pick<AgentContext, "userId" | "agentId">
 
 // ---------- rate limits and bookkeeping ----------
 
+/**
+ * Free plan (SP-20): one connected agent, read-only. On Free, only the user's
+ * oldest connected agent works; agents connected while on Pro pause until they upgrade again.
+ */
+export async function assertAgentAllowed(ctx: Pick<AgentContext, "agentId" | "userId" | "plan">) {
+  if (ctx.plan === "pro") return;
+  const [oldest] = await db
+    .select({ id: agents.id })
+    .from(agents)
+    .where(and(eq(agents.userId, ctx.userId), isNull(agents.revokedAt)))
+    .orderBy(asc(agents.createdAt))
+    .limit(1);
+  if (oldest && oldest.id !== ctx.agentId) {
+    throw new AgentError(
+      "SyncPads Free includes 1 connected agent, and another one is already connected. The user can disconnect it in SyncPads → Agents, or upgrade to Pro at syncpad.tech/pricing.",
+    );
+  }
+}
+
+const FREE_WRITE_MESSAGE =
+  "On SyncPads Free, agents can search and read only. Adding links and saving context are part of Pro: the user can upgrade at syncpad.tech/pricing.";
+
 export async function checkRateLimit(ctx: Pick<AgentContext, "agentId" | "plan">) {
   const minuteKey = `agent:${ctx.agentId}:m:${Math.floor(Date.now() / 60_000)}`;
   const dayKey = `agent:${ctx.agentId}:d:${new Date().toISOString().slice(0, 10)}`;
@@ -202,6 +224,7 @@ export async function toolAddLink(
   ctx: AgentContext,
   input: { url: string; title?: string; note?: string; page_id?: string; reason?: string },
 ) {
+  if (ctx.plan !== "pro") throw new AgentError(FREE_WRITE_MESSAGE);
   if (ctx.permission === "read") {
     throw new AgentError("This agent has read-only access. The user can allow adding links in SyncPads → Agents.");
   }
@@ -311,6 +334,7 @@ export function contextNoteHtml(input: SaveContextInput, agentName: string, date
  * the Agent Inbox unless the user lets this agent skip it.
  */
 export async function toolSaveContext(ctx: AgentContext, input: SaveContextInput) {
+  if (ctx.plan !== "pro") throw new AgentError(FREE_WRITE_MESSAGE);
   if (ctx.permission !== "read_add_context") {
     throw new AgentError(
       "This agent can't save context. The user can allow it in SyncPads → Agents (access: Read, add links and save context).",

@@ -85,7 +85,13 @@ const ACTION_LABEL: Record<string, string> = {
 };
 
 export function AgentsView() {
-  const [data, setData] = useState<{ mcpUrl: string; contextProfile: string; agents: Agent[]; pages: Page[] } | null>(null);
+  const [data, setData] = useState<{
+    mcpUrl: string;
+    plan: "free" | "pro";
+    contextProfile: string;
+    agents: Agent[];
+    pages: Page[];
+  } | null>(null);
   const [entries, setEntries] = useState<Entry[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [showReads, setShowReads] = useState(false);
@@ -93,7 +99,7 @@ export function AgentsView() {
   const load = useCallback(async () => {
     try {
       const [a, log] = await Promise.all([
-        api<{ mcpUrl: string; contextProfile: string; agents: Agent[]; pages: Page[] }>("GET", "/api/agents"),
+        api<{ mcpUrl: string; plan: "free" | "pro"; contextProfile: string; agents: Agent[]; pages: Page[] }>("GET", "/api/agents"),
         api<{ entries: Entry[] }>("GET", "/api/activity"),
       ]);
       setData(a);
@@ -126,6 +132,16 @@ export function AgentsView() {
   return (
     <div className="mt-8 space-y-8">
       {error && <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">{error}</p>}
+
+      {data.plan === "free" && (
+        <p className="rounded-2xl border border-sync-200 bg-sync-50 px-5 py-4 text-sm text-slate-800">
+          <strong>You&apos;re on SyncPads Free:</strong> 1 connected agent, which can search and read your pages. With Pro, connect
+          as many as you like and let them add links and save context from your conversations.{" "}
+          <a href="/pricing" className="font-semibold text-slate-900 underline decoration-sync-500 underline-offset-2">
+            See Pro
+          </a>
+        </p>
+      )}
 
       <ConnectCard mcpUrl={data.mcpUrl} />
 

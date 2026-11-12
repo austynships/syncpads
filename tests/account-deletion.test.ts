@@ -95,6 +95,7 @@ describe.skipIf(!url)("account deletion", () => {
       codeHash: `c${userId}`, clientId, userId, agentId, redirectUri: "https://example.com/cb", codeChallenge: "x".repeat(43), expiresAt: now,
     });
     await db.insert(s.oauthTokens).values({ tokenHash: `t${userId}`, kind: "access", clientId, userId, agentId, expiresAt: now });
+    await db.insert(s.subscriptions).values({ userId, stripeSubscriptionId: `sub_${userId}`, status: "active", interval: "month" });
 
     const userOwned = (await tableNames()).filter((t) => !NOT_USER_OWNED.has(t));
     const counts = async () => {

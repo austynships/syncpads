@@ -76,9 +76,33 @@ export default function TermsPage() {
 
         <Section id="plans" title="5. Plans and payment">
           <p>
-            SyncPads is currently free to use. If we introduce paid plans, we&apos;ll tell you before anything is charged,
-            and paid features will be described, with their prices, before you subscribe.
+            SyncPads has a free plan and a paid plan, Pro. What each includes and costs is shown on our{" "}
+            <Link href="/pricing">pricing page</Link>. The free plan has limits (such as the number of pages, links and
+            connected agents); reaching one only stops you adding more, and never deletes anything.
           </p>
+          <ul>
+            <li>
+              <strong>Billing.</strong> Pro is billed in advance, monthly or yearly, through Stripe, and renews
+              automatically at the end of each period until you cancel. Prices are in US dollars and may include taxes
+              where required.
+            </li>
+            <li>
+              <strong>Cancelling.</strong> You can cancel any time in Account settings. You keep Pro until the end of the
+              period you&apos;ve paid for, then move to the free plan.
+            </li>
+            <li>
+              <strong>Refunds.</strong> Payments aren&apos;t refundable, including for partial periods, except where the
+              law requires a refund. If you think you were charged by mistake, contact {mail}.
+            </li>
+            <li>
+              <strong>Changes to price.</strong> If we change Pro&apos;s price, we&apos;ll tell you at least 30 days before
+              it applies to you, and you can cancel before then.
+            </li>
+            <li>
+              <strong>Failed payments.</strong> If a payment fails, Stripe retries it. If it still can&apos;t be collected,
+              your account moves to the free plan.
+            </li>
+          </ul>
         </Section>
 
         <Section id="service" title="6. Changes and availability">

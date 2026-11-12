@@ -4,11 +4,13 @@ import { pages, userSettings } from "@/db/schema";
 import { handle } from "@/server/api";
 import { listAgents } from "@/server/agents";
 import { MCP_RESOURCE } from "@/server/oauth";
+import { getPlan } from "@/server/plans";
 
 // Connected agents, the user's pages (for page access) and the MCP address (SP-15, SP-18).
 export function GET(request: Request) {
   return handle(request, async ({ userId }) => ({
     mcpUrl: MCP_RESOURCE,
+    plan: await getPlan(userId),
     contextProfile:
       (await db.select({ p: userSettings.contextProfile }).from(userSettings).where(eq(userSettings.userId, userId)))[0]?.p ?? "",
     agents: await listAgents(userId),

@@ -235,7 +235,8 @@ function SmartFeatures({
             <span className="block text-sm font-semibold text-slate-900 dark:text-white">Summaries and search by meaning</span>
             <span className="mt-1 block text-xs leading-relaxed text-slate-600 dark:text-slate-400">
               Adds a short summary and tags to each link you save, and finds links by what they&apos;re about, not just
-              their words. When on, the text of the pages you save is sent to Anthropic and Voyage AI to do this.
+              their words. When on, the text of the pages you save is sent to Anthropic and Voyage AI to do this. Free
+              includes summaries for your first 100 links; Pro covers every link and adds search by meaning.
             </span>
           </span>
           <button

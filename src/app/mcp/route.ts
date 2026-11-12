@@ -8,6 +8,7 @@ import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/
 import { z } from "zod";
 import {
   AgentError,
+  assertAgentAllowed,
   checkRateLimit,
   toolAddLink,
   toolGetContext,
@@ -43,6 +44,7 @@ type ToolResult = { content: { type: "text"; text: string }[]; isError?: boolean
 /** Runs one tool call: rate limit, last-used time, plain errors. */
 async function run(ctx: AgentContext, fn: () => Promise<{ text: string; untrusted?: boolean }>): Promise<ToolResult> {
   try {
+    await assertAgentAllowed(ctx);
     await checkRateLimit(ctx);
     await touchAgent(ctx.agentId);
     const { text, untrusted = true } = await fn();

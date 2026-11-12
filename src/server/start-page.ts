@@ -21,6 +21,7 @@ import { normalizeUrl } from "@/lib/url";
 import { planImport, type BookmarkNode, type ImportLink } from "@/lib/bookmarks";
 import { aiAvailability } from "./enrichment/ai";
 import { enqueue, requeueForAi } from "./enrichment/queue";
+import { assertCanAddLinks, assertCanAddPages } from "./plans";
 
 type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
 
@@ -283,6 +284,7 @@ export function updateSettings(
 
 export function createPage(userId: string, input: { name: string }) {
   return write(userId, async (tx) => {
+    await assertCanAddPages(userId, 1, tx);
     const [{ value }] = await tx.select({ value: max(pages.position) }).from(pages).where(eq(pages.userId, userId));
     const id = crypto.randomUUID();
     await tx.insert(pages).values({ id, userId, name: input.name, position: (value ?? -1) + 1 });
@@ -362,6 +364,7 @@ export function createGroup(
       const url = normalizeUrl(link.url);
       if (url) links.push({ url, title: link.title?.trim().slice(0, 512) || null });
     }
+    await assertCanAddLinks(userId, links.length, tx);
     await enqueue(tx, userId, await insertLinks(tx, userId, id, links, "user"));
     return { id, added: links.length, skipped: (input.links?.length ?? 0) - links.length };
   });
@@ -406,6 +409,8 @@ export async function importBookmarks(userId: string, tree: BookmarkNode[]) {
   if (plan.linkCount === 0) throw new InvalidInputError("No links found to import.");
 
   return write(userId, async (tx) => {
+    await assertCanAddPages(userId, plan.pages.length, tx);
+    await assertCanAddLinks(userId, plan.linkCount, tx);
     const [{ value }] = await tx.select({ value: max(pages.position) }).from(pages).where(eq(pages.userId, userId));
     let pagePosition = (value ?? -1) + 1;
     const pageIds: string[] = [];
@@ -491,6 +496,7 @@ function cleanItemFields(input: { type?: "link" | "note"; url?: string | null; t
 export function createItem(userId: string, input: ItemInput) {
   return write(userId, async (tx) => {
     await assertGroup(tx, userId, input.groupId);
+    if (input.type === "link") await assertCanAddLinks(userId, 1, tx);
     const fields = cleanItemFields(input);
     if (input.type === "link" && !fields.url) throw new InvalidInputError("A link needs a web address.");
 
@@ -558,10 +564,12 @@ export function restoreItem(userId: string, itemId: string) {
 function setItemStatus(userId: string, itemId: string, status: "active" | "trashed") {
   return write(userId, async (tx) => {
     const [existing] = await tx
-      .select({ id: items.id })
+      .select({ id: items.id, type: items.type, status: items.status })
       .from(items)
       .where(and(eq(items.id, itemId), eq(items.userId, userId)));
     if (!existing) throw new NotFoundError("Item");
+    // Restoring a trashed link counts toward the Free link limit again.
+    if (status === "active" && existing.status === "trashed" && existing.type === "link") await assertCanAddLinks(userId, 1, tx);
     await tx.update(items).set({ status }).where(and(eq(items.id, itemId), eq(items.userId, userId)));
     return {};
   });

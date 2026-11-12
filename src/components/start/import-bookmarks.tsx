@@ -19,6 +19,7 @@ export function ImportBookmarks({ onImported }: { onImported: (result: ImportRes
   const [plan, setPlan] = useState<ImportPlan | null>(null);
   const [fileName, setFileName] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [upgrade, setUpgrade] = useState(false);
   const [busy, setBusy] = useState(false);
 
   async function onFile(file: File | undefined) {
@@ -51,6 +52,7 @@ export function ImportBookmarks({ onImported }: { onImported: (result: ImportRes
       onImported(result);
     } catch (err) {
       setError((err as Error).message);
+      setUpgrade((err as { upgrade?: boolean }).upgrade === true);
     } finally {
       setBusy(false);
     }
@@ -96,7 +98,16 @@ export function ImportBookmarks({ onImported }: { onImported: (result: ImportRes
           </button>
         </div>
       )}
-      {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
+      {error && (
+        <p className="mt-2 text-sm text-red-600">
+          {error}{" "}
+          {upgrade && (
+            <a href="/pricing" className="font-semibold text-slate-900 underline decoration-sync-500 underline-offset-2 dark:text-white">
+              See plans
+            </a>
+          )}
+        </p>
+      )}
     </div>
   );
 }

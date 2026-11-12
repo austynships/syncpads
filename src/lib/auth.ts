@@ -82,7 +82,14 @@ export const auth = betterAuth({
       stripeCustomerId: { type: "string", required: false, input: false },
     },
     // Immediate deletion; foreign keys cascade to every user-owned row.
-    deleteUser: { enabled: true },
+    deleteUser: {
+      enabled: true,
+      // End any Pro subscription first, so a deleted account is never charged again.
+      beforeDelete: async (user) => {
+        const { cancelSubscriptionForDeletion } = await import("@/server/billing");
+        await cancelSubscriptionForDeletion(user.id);
+      },
+    },
   },
 
   session: {

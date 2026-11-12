@@ -35,7 +35,7 @@ function writeCache(userId: string, state: StateDTO) {
   } catch {}
 }
 
-export function useStartPage(userId: string, onError: (message: string) => void) {
+export function useStartPage(userId: string, onError: (message: string, upgrade?: boolean) => void) {
   const [state, setStateRaw] = useState<StateDTO | null>(() => readCache(userId));
   const [offline, setOffline] = useState(false);
   const stateRef = useRef(state);
@@ -117,7 +117,7 @@ export function useStartPage(userId: string, onError: (message: string) => void)
         return result;
       } catch (err) {
         pending.current--;
-        onError((err as Error).message);
+        onError((err as Error).message, (err as { upgrade?: boolean }).upgrade);
         await refresh();
         return null;
       }

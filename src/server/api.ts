@@ -5,6 +5,8 @@
  */
 import { z, ZodError } from "zod";
 import { auth } from "@/lib/auth";
+import { BillingUnavailableError } from "./billing";
+import { PlanLimitError } from "./plans";
 import { InvalidInputError, NotFoundError } from "./start-page";
 
 type Handler = (ctx: { userId: string; request: Request }) => Promise<unknown>;
@@ -41,6 +43,8 @@ export async function handle(request: Request, fn: Handler): Promise<Response> {
   } catch (err) {
     if (err instanceof ZodError) return error(400, err.issues[0]?.message ?? "Invalid input.");
     if (err instanceof InvalidInputError) return error(400, err.message);
+    if (err instanceof PlanLimitError) return Response.json({ error: err.message, upgrade: true }, { status: 402 });
+    if (err instanceof BillingUnavailableError) return error(503, err.message);
     if (err instanceof NotFoundError) return error(404, err.message);
     if (err instanceof SyntaxError) return error(400, "Request body must be JSON.");
     console.error("[api]", err);

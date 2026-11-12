@@ -76,6 +76,27 @@ Imports add new pages after your existing ones in a single transaction, so a fai
 | Conversation context | `save_context`: an agent saves a distilled note from a chat (title, summary, decisions, open questions, related links) as a note item, into the Agent Inbox unless auto-approve is on. Needs the "Read, add links and save context" permission. Secrets are removed first (`src/server/redact.ts`: provider keys, tokens, JWTs, private keys, labeled passwords, card numbers, URL credentials and token query parameters). Notes show who saved them, and other agents see them labeled as agent-written, untrusted data. |
 | How I work | `get_context`: the user's own "How I work" notes (`user_settings.context_profile`, edited on `/agents`), the pages the agent can see, the 5 most recent agent-saved notes, and search results for an optional topic. The server's instructions tell agents to call it first. |
 
+## What's in Phase 6 (plans and billing)
+
+| Feature | Notes |
+| --- | --- |
+| Plans (SP-20) | `src/server/plans.ts`. Free: 3 pages, 500 links (active + inbox), 1 read-only agent, summaries for the first 100 links, keyword search, 2,000 agent calls a day. Pro: no limits, agents can add links and save context, search by meaning, 10,000 calls a day. A limit blocks only that action (HTTP 402 with `upgrade: true`, shown as a toast with "See plans"); nothing is ever removed. On Free only the oldest connected agent works. |
+| Billing | `src/server/billing.ts`. Stripe Checkout to subscribe, the Stripe customer portal to switch monthly/yearly, update the card, see invoices or cancel (at period end). Prices are found by lookup key (`syncpads_pro_monthly` $5, `syncpads_pro_yearly` $48). Deleting an account cancels its subscription first. |
+| Webhook | `POST /api/stripe/webhook`, verified by signature. Every event re-reads the subscription from Stripe, so order doesn't matter. `active`, `trialing` and `past_due` mean Pro; anything else means Free. State is mirrored in `subscriptions`. |
+| Pages | `/pricing` (public), and a Plan card with usage meters in Account settings. |
+
+### Billing setup (once per Stripe mode)
+
+Put `STRIPE_SECRET_KEY` in the server's `.env`, restart the app and worker, then create the product, prices, customer portal and webhook, writing the webhook's signing secret straight into `.env`:
+
+```bash
+cd /opt/syncpads
+docker compose -f docker-compose.prod.yml exec -T worker node stripe-setup.cjs | grep '^STRIPE_WEBHOOK_SECRET=' >> .env
+docker compose -f docker-compose.prod.yml up -d app
+```
+
+It's safe to run again. If `.env` lost the webhook secret, add `--recreate-webhook`. Do this once with the test key, and again when switching to the live key.
+
 Run the worker locally with `npm run worker` (bundles `src/worker/main.ts` to `dist/worker.cjs` and runs it with `.env`).
 
 ## Run locally

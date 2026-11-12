@@ -6,7 +6,7 @@
  */
 import { eq, sql, type SQL } from "drizzle-orm";
 import { db } from "@/db";
-import { userSettings } from "@/db/schema";
+import { users, userSettings } from "@/db/schema";
 import { searchEmbeddings } from "@/db/vector";
 import { displayHost } from "@/lib/url";
 import { aiAvailability, embed } from "./enrichment/ai";
@@ -128,6 +128,9 @@ async function meaningSearch(userId: string, input: SearchInput, limit: number):
   if (!aiAvailability().embeddings || input.query.trim().length < 3) return [];
   const [settings] = await db.select({ aiEnabled: userSettings.aiEnabled }).from(userSettings).where(eq(userSettings.userId, userId));
   if (!settings?.aiEnabled) return [];
+  // Search by meaning is a Pro feature (SP-20).
+  const [owner] = await db.select({ plan: users.plan }).from(users).where(eq(users.id, userId));
+  if (owner?.plan !== "pro") return [];
   try {
     const [vector] = await embed([input.query.trim().slice(0, 500)], "query");
     const nearest = await searchEmbeddings(db, { userId, embedding: vector, limit });

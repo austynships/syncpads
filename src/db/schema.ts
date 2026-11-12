@@ -182,6 +182,24 @@ export const agents = mysqlTable(
   (t) => [index("agents_user_id_idx").on(t.userId), index("agents_client_idx").on(t.clientId)],
 );
 
+// ---------- Phase 6: plans and billing (SP-20) ----------
+
+/**
+ * The user's Stripe subscription, mirrored from Stripe webhooks. users.plan is
+ * derived from it ("pro" while the subscription is active, trialing or past due).
+ */
+export const subscriptions = mysqlTable("subscriptions", {
+  userId: varchar("user_id", { length: 36 })
+    .primaryKey()
+    .references(() => users.id, { onDelete: "cascade" }),
+  stripeSubscriptionId: varchar("stripe_subscription_id", { length: 255 }).notNull().unique(),
+  status: varchar("status", { length: 32 }).notNull(),
+  interval: mysqlEnum("interval", ["month", "year"]),
+  currentPeriodEnd: datetime("current_period_end", { mode: "date", fsp: 3 }),
+  cancelAtPeriodEnd: boolean("cancel_at_period_end").notNull().default(false),
+  updatedAt: updatedAt(),
+});
+
 // ---------- Phase 5: OAuth 2.1 for agent connections (SP-15) ----------
 
 /**

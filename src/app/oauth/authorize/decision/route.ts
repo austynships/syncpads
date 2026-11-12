@@ -1,5 +1,6 @@
 import { auth } from "@/lib/auth";
 import { approveAuthorization, ORIGIN, validateAuthorizeRequest, withParams } from "@/server/oauth";
+import { freeAgentConflict, getPlan } from "@/server/plans";
 import { logAgentRequest } from "@/server/request-log";
 
 // The consent form posts here. Only our own consent page may post (Origin
@@ -15,7 +16,11 @@ export async function POST(request: Request) {
   const form = new URLSearchParams(await request.text());
   const decision = form.get("decision");
   const requested = form.get("permission");
-  const permission = requested === "read" || requested === "read_add" ? requested : "read_add_context";
+  let permission: "read" | "read_add" | "read_add_context" =
+    requested === "read" || requested === "read_add" ? requested : "read_add_context";
+  // Free plan (SP-20): one agent, read-only.
+  const plan = await getPlan(session.user.id);
+  if (plan === "free") permission = "read";
   form.delete("decision");
   form.delete("permission");
 
@@ -25,7 +30,12 @@ export async function POST(request: Request) {
     return new Response(check.show ?? "Invalid request.", { status: 400 });
   }
 
-  logAgentRequest("consent", request, 303, { client: check.request.client.name, decision, permission });
+  if (decision === "allow" && (await freeAgentConflict(session.user.id, check.request.client))) {
+    return new Response("SyncPads Free includes 1 connected agent. Disconnect the other one in Agents, or upgrade to Pro.", {
+      status: 402,
+    });
+  }
+  logAgentRequest("consent", request, 303, { client: check.request.client.name, decision, permission, plan });
   if (decision !== "allow") {
     const url = withParams(check.request.redirectUri, {
       error: "access_denied",

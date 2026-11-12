@@ -244,13 +244,15 @@ export function withParams(base: string, params: Record<string, string | null | 
  * set its permission, and issue a one-time code.
  */
 export async function approveAuthorization(userId: string, req: AuthorizeRequest, permission: "read" | "read_add" | "read_add_context") {
-  const [existing] = await db
-    .select()
-    .from(agents)
-    .where(and(eq(agents.userId, userId), eq(agents.clientId, req.client.id), isNull(agents.revokedAt)));
+  // Same client, or the same app re-registered (apps like Claude register a new
+  // client when you reconnect): keep it one agent, with its history.
+  const mine = await db.select().from(agents).where(and(eq(agents.userId, userId), isNull(agents.revokedAt)));
+  const existing =
+    mine.find((a) => a.clientId === req.client.id) ?? mine.find((a) => a.name === req.client.name);
   let agentId = existing?.id;
   if (existing) {
-    await db.update(agents).set({ permission }).where(eq(agents.id, existing.id));
+    if (existing.clientId !== req.client.id) await revokeAgentTokens(existing.id); // the old client's tokens
+    await db.update(agents).set({ permission, clientId: req.client.id }).where(eq(agents.id, existing.id));
   } else {
     agentId = crypto.randomUUID();
     await db.insert(agents).values({

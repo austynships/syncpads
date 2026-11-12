@@ -4,6 +4,7 @@ import { IconAlert, IconLink } from "@/components/icons";
 import { AuthCard, StatusIcon, linkClass } from "@/components/ui";
 import { getSession } from "@/lib/session";
 import { validateAuthorizeRequest } from "@/server/oauth";
+import { freeAgentConflict, getPlan } from "@/server/plans";
 
 export const metadata = { title: "Connect an agent" };
 
@@ -40,6 +41,30 @@ export default async function AuthorizePage({ searchParams }: { searchParams: Pr
   if (!session) redirect(`/login?next=${encodeURIComponent(`/oauth/authorize?${params.toString()}`)}`);
 
   const { client } = check.request;
+  const plan = await getPlan(session.user.id);
+  const conflict = await freeAgentConflict(session.user.id, client);
+  if (conflict) {
+    return (
+      <AuthCard
+        icon={
+          <StatusIcon tone="warning">
+            <IconAlert size={22} />
+          </StatusIcon>
+        }
+        title={`Connect ${client.name}?`}
+        subtitle={`SyncPads Free includes 1 connected agent, and ${conflict} is already connected. Disconnect it in Agents, or upgrade to Pro to connect as many as you like.`}
+        footer={
+          <a href="/agents" className={linkClass}>
+            Go to Agents
+          </a>
+        }
+      >
+        <a href="/pricing" className="btn-primary w-full py-2.5">
+          See Pro
+        </a>
+      </AuthCard>
+    );
+  }
   return (
     <AuthCard
       icon={
@@ -62,6 +87,19 @@ export default async function AuthorizePage({ searchParams }: { searchParams: Pr
         ))}
         <fieldset className="space-y-2">
           <legend className="mb-2 text-sm font-medium text-slate-800">What can it do?</legend>
+          {plan === "free" ? (
+            <>
+              <Choice value="read" defaultChecked title="Read only" body="Search and read your pages. It can't add anything." />
+              <p className="rounded-xl bg-slate-50 px-3.5 py-2.5 text-xs leading-relaxed text-slate-600">
+                Letting agents add links and save context from your conversations is part of{" "}
+                <a href="/pricing" className="font-semibold text-slate-900 underline decoration-sync-500 underline-offset-2">
+                  SyncPads Pro
+                </a>
+                .
+              </p>
+            </>
+          ) : (
+          <>
           <Choice
             value="read_add_context"
             defaultChecked
@@ -74,6 +112,8 @@ export default async function AuthorizePage({ searchParams }: { searchParams: Pr
             body="Search and read your pages, and suggest links for your inbox. It can't save conversation context."
           />
           <Choice value="read" title="Read only" body="Search and read your pages. It can't add anything." />
+          </>
+          )}
         </fieldset>
         <p className="mt-4 text-xs leading-relaxed text-slate-500">
           It can never delete anything, and pages you hide from agents stay invisible to it. Every action it takes is

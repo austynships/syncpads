@@ -70,7 +70,8 @@ describe.skipIf(!url)("agents, OAuth and MCP", () => {
     oauth = await import("@/server/oauth");
     agentsMod = await import("@/server/agents");
     mcp = await import("@/app/mcp/route");
-    await dbMod.db.insert(schema.users).values({ id: user, email: `${user}@test.local`, name: "T" });
+    // Pro: these tests cover agent writes, which are a Pro feature (Free limits are in billing.test.ts).
+    await dbMod.db.insert(schema.users).values({ id: user, email: `${user}@test.local`, name: "T", plan: "pro" });
     homeId = (await sp.getState(user)).pages[0].id;
     const groupId = (await sp.getState(user)).pages[0].groups[0].id;
     await sp.createItem(user, { groupId, type: "link", url: "https://linear.app", title: "Linear issue tracker" });

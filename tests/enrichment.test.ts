@@ -76,7 +76,8 @@ describe.skipIf(!url)("enrichment and search", () => {
     proc = await import("@/server/enrichment/process");
     searchMod = await import("@/server/search");
     for (const id of [user, other]) {
-      await dbMod.db.insert(schema.users).values({ id, email: `${id}@test.local`, name: "T" });
+      // Pro: search by meaning and summaries for every link (Free limits are in billing.test.ts).
+      await dbMod.db.insert(schema.users).values({ id, email: `${id}@test.local`, name: "T", plan: "pro" });
     }
     // Leave queued jobs from other test files out of this one.
     await dbMod.pool.query("UPDATE item_enrichment SET status = 'done' WHERE user_id NOT IN (?, ?)", [user, other]);

@@ -147,6 +147,8 @@ describe.skipIf(!url)("start page data", () => {
   });
 
   it("imports bookmarks as new pages after the existing ones, in one write (SP-9)", async () => {
+    // 2,002 links is over the Free limit (500): this test measures import speed, so use Pro.
+    await dbMod.pool.query("UPDATE users SET plan = 'pro' WHERE id = ?", [bob]);
     const before = await sp.getState(bob);
     const folders = Array.from({ length: 20 }, (_, f) => ({
       title: `Folder ${f}`,

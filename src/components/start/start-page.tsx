@@ -28,7 +28,13 @@ export function StartPage({ userId, email }: { userId: string; email: string }) 
     setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), 6000);
   }, []);
 
-  const { state, offline, refresh, mutate } = useStartPage(userId, toast);
+  // Plan limits (SP-20) come with a way to upgrade.
+  const onError = useCallback(
+    (message: string, upgrade?: boolean) =>
+      toast(message, upgrade ? { label: "See plans", run: () => (window.location.href = "/pricing") } : undefined),
+    [toast],
+  );
+  const { state, offline, refresh, mutate } = useStartPage(userId, onError);
   const [pageId, setPageId] = useState<string | null>(() => {
     try {
       return localStorage.getItem(`syncpads:page:${userId}`);

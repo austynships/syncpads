@@ -64,7 +64,8 @@ describe.skipIf(!url)("conversation context", () => {
     oauth = await import("@/server/oauth");
     agentsMod = await import("@/server/agents");
     mcp = await import("@/app/mcp/route");
-    await dbMod.db.insert(schema.users).values({ id: user, email: `${user}@test.local`, name: "T" });
+    // Pro: these tests cover agent writes, which are a Pro feature (Free limits are in billing.test.ts).
+    await dbMod.db.insert(schema.users).values({ id: user, email: `${user}@test.local`, name: "T", plan: "pro" });
     await sp.ensureUserSetup(user);
     workId = (await sp.createPage(user, { name: "Acme" })).id;
     const acmeGroup = (await sp.getState(user)).pages.find((p) => p.id === workId)!.groups[0].id;

@@ -149,6 +149,9 @@ export default async function Home() {
             <a href="#how-it-works" className="btn-ghost hidden sm:inline-flex">
               How it works
             </a>
+            <Link href="/pricing" className="btn-ghost hidden sm:inline-flex">
+              Pricing
+            </Link>
             {session ? (
               // Plain <a>: a full page load, so Clarity (public pages only) doesn't follow into the app.
               <a href="/app" className="btn-primary">
@@ -362,6 +365,7 @@ export default async function Home() {
           <nav className="flex gap-5">
             <Link href="/login" className="hover:text-slate-900">Sign in</Link>
             <Link href="/signup" className="hover:text-slate-900">Create account</Link>
+            <Link href="/pricing" className="hover:text-slate-900">Pricing</Link>
             <Link href="/privacy" className="hover:text-slate-900">Privacy</Link>
             <Link href="/terms" className="hover:text-slate-900">Terms</Link>
             <CookieSettingsLink className="hover:text-slate-900" />

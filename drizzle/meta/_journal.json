@@ -43,6 +43,13 @@
       "when": 1794499191145,
       "tag": "0005_agent_context",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "5",
+      "when": 1794502903587,
+      "tag": "0006_billing",
+      "breakpoints": true
     }
   ]
 }
