@@ -57,6 +57,11 @@ export function AuthCard({
           {subtitle && <p className="mt-2 text-sm leading-relaxed text-slate-600">{subtitle}</p>}
           <div className="mt-6">{children}</div>
           {footer && <div className="mt-8 text-sm text-slate-600">{footer}</div>}
+          <p className="mt-10 flex gap-4 text-xs text-slate-400">
+            {/* Plain <a>: these screens include the agent consent screen, which analytics must never follow into. */}
+            <a href="/privacy" className="hover:text-slate-700">Privacy</a>
+            <a href="/terms" className="hover:text-slate-700">Terms</a>
+          </p>
         </div>
       </main>
     </div>

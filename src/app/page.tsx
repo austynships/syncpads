@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Logo, LogoMark } from "@/components/brand";
 import { Clarity } from "@/components/clarity";
+import { CookieSettingsLink } from "@/components/consent";
 import {
   IconArrowRight,
   IconBot,
@@ -361,6 +362,9 @@ export default async function Home() {
           <nav className="flex gap-5">
             <Link href="/login" className="hover:text-slate-900">Sign in</Link>
             <Link href="/signup" className="hover:text-slate-900">Create account</Link>
+            <Link href="/privacy" className="hover:text-slate-900">Privacy</Link>
+            <Link href="/terms" className="hover:text-slate-900">Terms</Link>
+            <CookieSettingsLink className="hover:text-slate-900" />
           </nav>
         </div>
       </footer>

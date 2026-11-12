@@ -105,6 +105,11 @@ export default function SignupPage() {
             </span>
           }
         />
+        <p className="mb-3 mt-1 text-xs leading-relaxed text-slate-500">
+          By creating a workspace, you agree to our{" "}
+          <Link href="/terms" className="font-medium text-slate-700 underline underline-offset-2">Terms of Service</Link> and{" "}
+          <Link href="/privacy" className="font-medium text-slate-700 underline underline-offset-2">Privacy Policy</Link>.
+        </p>
         <Button type="submit" disabled={loading} className="mt-2">
           {loading ? "Creating your workspace…" : "Create workspace"}
         </Button>
