@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { Clarity } from "@/components/clarity";
 import { Alert, AuthCard, Button, Field, linkClass } from "@/components/ui";
 import { authClient } from "@/lib/auth-client";
 
@@ -16,7 +16,6 @@ function nextPath() {
 }
 
 export default function LoginPage() {
-  const router = useRouter();
   const [error, setError] = useState<{ kind: "error" | "warning"; text: string } | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -33,8 +32,8 @@ export default function LoginPage() {
     setLoading(false);
 
     if (!error) {
-      router.push(nextPath());
-      router.refresh();
+      // Full page load, so Clarity (public pages only) doesn't follow into the app.
+      window.location.assign(nextPath());
       return;
     }
     if (error.status === 429) {
@@ -48,6 +47,8 @@ export default function LoginPage() {
   }
 
   return (
+    <>
+    <Clarity />
     <AuthCard
       title="Welcome back"
       subtitle="Sign in to your SyncPads workspace."
@@ -77,5 +78,6 @@ export default function LoginPage() {
         </Button>
       </form>
     </AuthCard>
+    </>
   );
 }

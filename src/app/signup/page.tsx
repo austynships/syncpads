@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { IconCheck, IconMail } from "@/components/icons";
+import { Clarity } from "@/components/clarity";
 import { ResendVerification } from "@/components/resend-verification";
 import { Alert, AuthCard, Button, Field, StatusIcon, linkClass } from "@/components/ui";
 import { authClient } from "@/lib/auth-client";
@@ -69,6 +70,8 @@ export default function SignupPage() {
   }
 
   return (
+    <>
+    <Clarity />
     <AuthCard
       title="Create your workspace"
       subtitle="Bring your links, tools and notes together in one place."
@@ -107,5 +110,6 @@ export default function SignupPage() {
         </Button>
       </form>
     </AuthCard>
+    </>
   );
 }

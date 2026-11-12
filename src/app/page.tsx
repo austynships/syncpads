@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Logo, LogoMark } from "@/components/brand";
+import { Clarity } from "@/components/clarity";
 import {
   IconArrowRight,
   IconBot,
@@ -139,6 +140,7 @@ export default async function Home() {
 
   return (
     <div className="flex min-h-screen flex-col bg-slate-50">
+      <Clarity />
       <header className="sticky top-0 z-30 border-b border-slate-900/5 bg-slate-50/80 backdrop-blur-md">
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-6">
           <Logo href="/" height={30} />
@@ -147,9 +149,10 @@ export default async function Home() {
               How it works
             </a>
             {session ? (
-              <Link href="/app" className="btn-primary">
+              // Plain <a>: a full page load, so Clarity (public pages only) doesn't follow into the app.
+              <a href="/app" className="btn-primary">
                 Open app
-              </Link>
+              </a>
             ) : (
               <>
                 <Link href="/login" className="btn-ghost">
@@ -185,10 +188,10 @@ export default async function Home() {
                 uses them too, and keeps what you decide, so you stop re-explaining your work in every chat.
               </p>
               <div className="mt-8 flex flex-wrap gap-3">
-                <Link href={primary.href} className="btn-primary px-5 py-3 text-base">
+                <a href={primary.href} className="btn-primary px-5 py-3 text-base">
                   {primary.label}
                   <IconArrowRight />
-                </Link>
+                </a>
                 <a href="#how-it-works" className="btn-secondary px-5 py-3 text-base">
                   See how it works
                 </a>
@@ -340,10 +343,10 @@ export default async function Home() {
               <p className="mx-auto mt-3 max-w-md text-balance text-slate-300">
                 Build your start page in minutes, connect your AI, and stop starting every chat from zero.
               </p>
-              <Link href={primary.href} className="btn-primary mt-8 px-6 py-3 text-base">
+              <a href={primary.href} className="btn-primary mt-8 px-6 py-3 text-base">
                 {primary.label}
                 <IconArrowRight />
-              </Link>
+              </a>
             </div>
           </div>
         </section>
