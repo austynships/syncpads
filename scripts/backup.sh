@@ -1,30 +1,28 @@
 #!/usr/bin/env bash
-# Nightly MariaDB backup to Cloudflare R2.
-# Run by cron (see README). Keep backups for 30 days with an R2 lifecycle rule
-# on the bucket ("delete objects after 30 days").
+# Nightly MariaDB backup, kept on this server.
+# Run by deploy/systemd/syncpads-backup.timer (see README). Keeps the last
+# BACKUP_KEEP_DAYS days (default 14) of dumps in BACKUP_DIR.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
 set -a; source .env; set +a
-: "${R2_ACCOUNT_ID:?}" "${R2_ACCESS_KEY_ID:?}" "${R2_SECRET_ACCESS_KEY:?}" "${R2_BUCKET:?}"
+BACKUP_DIR="${BACKUP_DIR:-/var/backups/syncpads}"
+BACKUP_KEEP_DAYS="${BACKUP_KEEP_DAYS:-14}"
+
+mkdir -p "$BACKUP_DIR"
+chmod 700 "$BACKUP_DIR"
 
 STAMP="$(date -u +%Y-%m-%dT%H%M%SZ)"
-FILE="/tmp/syncpads-${STAMP}.sql.gz"
+FILE="${BACKUP_DIR}/syncpads-${STAMP}.sql.gz"
 
 echo "==> Dumping database"
 docker compose -f docker-compose.prod.yml exec -T mariadb \
   mariadb-dump --single-transaction --routines --triggers \
-  -uroot -p"${DB_ROOT_PASSWORD}" syncpads | gzip > "$FILE"
+  -uroot -p"${DB_ROOT_PASSWORD}" syncpads | gzip > "${FILE}.part"
+mv "${FILE}.part" "$FILE"
+chmod 600 "$FILE"
 
-echo "==> Uploading to R2"
-docker run --rm \
-  -e AWS_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID" \
-  -e AWS_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY" \
-  -e AWS_DEFAULT_REGION=auto \
-  -v /tmp:/tmp \
-  amazon/aws-cli s3 cp "$FILE" "s3://${R2_BUCKET}/mariadb/$(basename "$FILE")" \
-  --endpoint-url "https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
+echo "==> Removing backups older than ${BACKUP_KEEP_DAYS} days"
+find "$BACKUP_DIR" -name 'syncpads-*.sql.gz' -mtime +"$BACKUP_KEEP_DAYS" -delete
 
-rm -f "$FILE"
-echo "==> Backup done: mariadb/$(basename "$FILE")"
-
+echo "==> Backup done: $FILE ($(du -h "$FILE" | cut -f1))"

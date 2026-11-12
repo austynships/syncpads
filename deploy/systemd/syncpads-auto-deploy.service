@@ -1,0 +1,10 @@
+[Unit]
+Description=SyncPads: deploy new commits from GitHub main
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/syncpads
+ExecStart=/opt/syncpads/scripts/auto-deploy.sh
+TimeoutStartSec=30min

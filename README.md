@@ -91,27 +91,27 @@ Everything runs with Docker Compose on one server: Caddy (HTTPS) ? app ? MariaDB
 
 1. Install Ubuntu 24.04, Docker and a firewall that allows only ports 22, 80 and 443.
 2. Point your domain's DNS `A` record at the server.
-3. Clone this repo to `~/syncpads` on the server. For a private repo, use a read-only GitHub deploy key.
+3. Clone this repo to `/opt/syncpads` on the server. For a private repo, use a read-only GitHub deploy key.
 4. `cp .env.production.example .env` and fill it in (generate secrets with `openssl rand -hex 32`).
 5. `./scripts/deploy.sh`. This pulls, builds and starts everything. Migrations run when the app starts, and Caddy fetches the HTTPS certificate on its own.
 6. Logs: `docker compose -f docker-compose.prod.yml logs -f app`. Health check: `https://your-domain/api/health`.
 
-### Automatic deploys (optional)
+### Automatic deploys
 
-`.github/workflows/deploy.yml` SSHes into the server and runs `scripts/deploy.sh` on every push to `main`. To turn it on, go to GitHub ? repo ? Settings ? Secrets and variables ? Actions:
-- Secrets: `VPS_HOST` (server IP) and `VPS_SSH_KEY` (a private key whose public key is in the `deploy` user's `~/.ssh/authorized_keys`)
-- Variable: `DEPLOY_ENABLED` = `true`
+The server checks GitHub every minute and runs `scripts/deploy.sh` when `main` has a new commit (`scripts/auto-deploy.sh`). The repo is public, so no keys or GitHub secrets are involved. Install it once (the units assume the repo is at `/opt/syncpads`):
+
+```bash
+cp deploy/systemd/syncpads-*.service deploy/systemd/syncpads-*.timer /etc/systemd/system/
+systemctl daemon-reload
+systemctl enable --now syncpads-auto-deploy.timer syncpads-backup.timer
+```
+
+Deploy log: `journalctl -u syncpads-auto-deploy -n 100`. Pause auto-deploys with `systemctl stop syncpads-auto-deploy.timer`.
 
 ### Nightly backups
 
-`scripts/backup.sh` dumps MariaDB and uploads it to Cloudflare R2. Fill in the `R2_*` values in `.env`, then add a cron job (`crontab -e`):
-
-```
-0 3 * * * cd ~/syncpads && ./scripts/backup.sh >> ~/backup.log 2>&1
-```
-
-In R2, add a lifecycle rule to the bucket that deletes objects after 30 days. Test a restore before launch:
-`gunzip -c backup.sql.gz | docker compose -f docker-compose.prod.yml exec -T mariadb mariadb -uroot -p"$DB_ROOT_PASSWORD" syncpads`
+`scripts/backup.sh` dumps MariaDB to `/var/backups/syncpads` on the server every night at 03:00 UTC (`syncpads-backup.timer`, installed above) and keeps 14 days. These backups live on the same server, so Hostinger's VPS snapshots are the copy that survives losing the server. Test a restore before launch:
+`gunzip -c /var/backups/syncpads/<file>.sql.gz | docker compose -f docker-compose.prod.yml exec -T mariadb mariadb -uroot -p"$DB_ROOT_PASSWORD" syncpads`
 
 ### Why `TRUST_PROXY` matters
 
@@ -121,11 +121,10 @@ Every request reaches the app from Caddy. The lockout reads the real client IP f
 
 - **Resend** (resend.com): create an API key and verify your sending domain (DNS records). Without a verified domain, Resend only delivers to your own address.
 - **Domain**: needed for HTTPS and the Resend sender.
-- **Cloudflare R2** (or Backblaze B2): for nightly backups.
 
 ## Privacy policy note
 
-Account deletion removes all of a user's data from the live database immediately. **Nightly off-server backups are kept for 30 days**, so a deleted account can still exist in a backup for up to 30 days after deletion. The privacy policy should say so.
+Account deletion removes all of a user's data from the live database immediately. **Nightly backups are kept for 14 days** (plus any Hostinger VPS snapshots), so a deleted account can still exist in a backup for a while after deletion. The privacy policy should say so.
 
 ## Project layout
 
