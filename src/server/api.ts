@@ -143,5 +143,15 @@ export const schemas = {
     })
     .refine((v) => Object.keys(v).length > 0, "Nothing to update."),
   reorderItems: z.object({ groupId: id, ids }),
+
+  approveInbox: z.object({ groupId: id.optional(), title: z.string().max(512).nullish() }),
+  updateAgent: z
+    .object({
+      name: name.optional(),
+      permission: z.enum(["read", "read_add"]).optional(),
+      autoApprove: z.boolean().optional(),
+      pageIds: z.array(id).max(500).nullable().optional(),
+    })
+    .refine((v) => Object.keys(v).length > 0, "Nothing to update."),
 };
 

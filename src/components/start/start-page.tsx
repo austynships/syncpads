@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Logo, LogoMark } from "@/components/brand";
-import { IconLogOut, IconSliders, IconUser } from "@/components/icons";
+import { IconBot, IconInbox, IconLogOut, IconSliders, IconUser } from "@/components/icons";
 import type { Wallpaper } from "@/db/schema";
 import { authClient } from "@/lib/auth-client";
 import type { GroupDTO, ItemDTO, PageLayout, StateDTO, Theme } from "@/lib/start-page-types";
@@ -11,6 +11,7 @@ import { normalizeUrl } from "@/lib/url";
 import { wallpaperCss } from "@/lib/wallpapers";
 import { api } from "./api";
 import { PageBoard, type BoardActions } from "./board";
+import { InboxPanel } from "./inbox-panel";
 import { PageTabs } from "./page-tabs";
 import { SearchBar } from "./search-bar";
 import { SettingsPanel } from "./settings-panel";
@@ -36,6 +37,7 @@ export function StartPage({ userId, email }: { userId: string; email: string }) 
     }
   });
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [inboxOpen, setInboxOpen] = useState(false);
 
   const page = state?.pages.find((p) => p.id === pageId) ?? state?.pages[0];
   const selectPage = (id: string) => {
@@ -140,6 +142,19 @@ export function StartPage({ userId, email }: { userId: string; email: string }) 
   };
   const setTheme = (theme: Theme) =>
     mutate((s) => ({ ...s, settings: { ...s.settings, theme } }), () => api("PATCH", "/api/settings", { theme }));
+  const setHiddenFromAgents = (id: string, hiddenFromAgents: boolean) =>
+    mutate((s) => mapPage(s, id, (p) => ({ ...p, hiddenFromAgents })), () => api("PATCH", `/api/pages/${id}`, { hiddenFromAgents }));
+  // Agent Inbox (SP-16). Both reload, so the approved link appears in its group.
+  const approveInbox = (id: string, groupId: string, title: string) =>
+    mutate(
+      (s) => ({ ...s, inbox: (s.inbox ?? []).filter((i) => i.id !== id) }),
+      () => api("POST", `/api/inbox/${id}/approve`, { groupId, title: title.trim() || null }),
+    ).then((r) => r && refresh());
+  const dismissInbox = (id: string) =>
+    mutate(
+      (s) => ({ ...s, inbox: (s.inbox ?? []).filter((i) => i.id !== id) }),
+      () => api("POST", `/api/inbox/${id}/dismiss`),
+    );
   const setAiEnabled = (aiEnabled: boolean) =>
     mutate((s) => ({ ...s, settings: { ...s.settings, aiEnabled } }), () => api("PATCH", "/api/settings", { aiEnabled }));
   const setWallpaper = (wallpaper: Wallpaper) =>
@@ -209,6 +224,7 @@ export function StartPage({ userId, email }: { userId: string; email: string }) 
               Offline
             </span>
           )}
+          <InboxButton count={state.inbox?.length ?? 0} onClick={() => setInboxOpen(true)} />
           <button type="button" className="icon-btn" onClick={() => setSettingsOpen(true)} aria-label="Settings" title="Settings">
             <IconSliders size={18} />
           </button>
@@ -228,6 +244,7 @@ export function StartPage({ userId, email }: { userId: string; email: string }) 
             onTheme={setTheme}
             onWallpaper={setWallpaper}
             onAiEnabled={setAiEnabled}
+            onHiddenFromAgents={(hidden) => setHiddenFromAgents(page.id, hidden)}
             onPageLayout={(layout) => setPageLayout(page.id, layout)}
             onRenamePage={(name) => renamePage(page.id, name)}
             onDeletePage={() => deletePage(page.id)}
@@ -239,6 +256,19 @@ export function StartPage({ userId, email }: { userId: string; email: string }) 
                 `Imported ${result.links.toLocaleString()} links into ${result.pages} new ${result.pages === 1 ? "page" : "pages"}.`,
               );
             }}
+          />
+        )}
+
+        {inboxOpen && (
+          <InboxPanel
+            inbox={state.inbox ?? []}
+            pages={state.pages}
+            onClose={() => setInboxOpen(false)}
+            onApprove={(item, groupId, title) => {
+              approveInbox(item.id, groupId, title);
+              toast("Added to your page.");
+            }}
+            onDismiss={(item) => dismissInbox(item.id)}
           />
         )}
 
@@ -269,6 +299,25 @@ export function StartPage({ userId, email }: { userId: string; email: string }) 
   );
 }
 
+function InboxButton({ count, onClick }: { count: number; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      className="icon-btn relative"
+      onClick={onClick}
+      aria-label={count ? `Agent Inbox, ${count} waiting` : "Agent Inbox"}
+      title="Agent Inbox"
+    >
+      <IconInbox size={18} />
+      {count > 0 && (
+        <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-sync-600 px-1 text-[10px] font-bold text-white ring-2 ring-white dark:ring-slate-950">
+          {count > 99 ? "99+" : count}
+        </span>
+      )}
+    </button>
+  );
+}
+
 function AccountMenu({ email, userId }: { email: string; userId: string }) {
   const [open, setOpen] = useState(false);
   return (
@@ -285,6 +334,13 @@ function AccountMenu({ email, userId }: { email: string; userId: string }) {
       {open && (
         <div className="absolute right-0 mt-2 w-60 rounded-xl border border-slate-900/[0.07] bg-white p-1.5 text-sm shadow-xl dark:border-white/10 dark:bg-slate-900">
           <p className="truncate px-3 pb-2 pt-1.5 text-xs text-slate-500 dark:text-slate-400">{email}</p>
+          <Link
+            href="/agents"
+            className="flex items-center gap-2 rounded-lg px-3 py-2 text-slate-800 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-white/10"
+          >
+            <IconBot size={15} />
+            Agents and activity
+          </Link>
           <Link
             href="/settings"
             className="flex items-center gap-2 rounded-lg px-3 py-2 text-slate-800 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-white/10"

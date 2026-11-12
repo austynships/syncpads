@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import type { Wallpaper } from "@/db/schema";
-import { IconMonitor, IconMoon, IconSun, IconTrash, IconX } from "@/components/icons";
+import Link from "next/link";
+import { IconBot, IconEyeOff, IconMonitor, IconMoon, IconSun, IconTrash, IconX } from "@/components/icons";
 import type { PageDTO, PageLayout, SettingsDTO, Theme } from "@/lib/start-page-types";
 import { PRESET_COLORS, PRESET_WALLPAPERS } from "@/lib/wallpapers";
 import { ImportBookmarks } from "./import-bookmarks";
@@ -15,6 +16,7 @@ type Props = {
   onTheme: (theme: Theme) => void;
   onWallpaper: (wallpaper: Wallpaper) => void;
   onAiEnabled: (enabled: boolean) => void;
+  onHiddenFromAgents: (hidden: boolean) => void;
   onPageLayout: (layout: PageLayout) => void;
   onRenamePage: (name: string) => void;
   onDeletePage: () => void;
@@ -129,6 +131,17 @@ export function SettingsPanel(p: Props) {
           </section>
 
           <section>
+            <h3 className="label">AI agents</h3>
+            <Link href="/agents" className="btn-secondary w-full justify-between">
+              <span className="flex items-center gap-2">
+                <IconBot size={16} />
+                Connect agents, permissions and activity
+              </span>
+              <span aria-hidden="true">→</span>
+            </Link>
+          </section>
+
+          <section>
             <ImportBookmarks onImported={p.onImported} />
           </section>
 
@@ -157,6 +170,23 @@ export function SettingsPanel(p: Props) {
                   <option key={n} value={n}>{n}</option>
                 ))}
               </select>
+            </label>
+            <label className="mb-4 flex items-center justify-between gap-3 text-sm font-medium text-slate-800 dark:text-slate-200">
+              <span className="flex items-center gap-2">
+                <IconEyeOff size={16} className="text-slate-500" />
+                Hide this page from AI agents
+              </span>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={p.page.hiddenFromAgents}
+                onClick={() => p.onHiddenFromAgents(!p.page.hiddenFromAgents)}
+                className={`relative h-6 w-11 shrink-0 rounded-full transition ${p.page.hiddenFromAgents ? "bg-sync-600" : "bg-slate-300 dark:bg-slate-700"}`}
+              >
+                <span
+                  className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all ${p.page.hiddenFromAgents ? "left-[22px]" : "left-0.5"}`}
+                />
+              </button>
             </label>
             <button
               type="button"

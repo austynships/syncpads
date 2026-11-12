@@ -5,11 +5,12 @@
  */
 import { and, asc, eq, inArray, max, sql } from "drizzle-orm";
 import { db, type Db } from "@/db";
-import { groups, itemEnrichment, items, pages, userSettings, type Wallpaper } from "@/db/schema";
+import { activityLog, agents, groups, itemEnrichment, items, pages, userSettings, type Wallpaper } from "@/db/schema";
 import { sanitizeNoteHtml } from "@/lib/sanitize";
 import type {
   GroupDTO,
   GroupLayout,
+  InboxItemDTO,
   ItemDTO,
   PageDTO,
   PageLayout,
@@ -156,6 +157,7 @@ export async function getState(userId: string): Promise<StateDTO> {
   }
 
   return {
+    inbox: await getInbox(userId),
     revision: settingsRow?.revision ?? 0,
     settings: {
       theme: settingsRow?.theme ?? "system",
@@ -174,6 +176,85 @@ export async function getState(userId: string): Promise<StateDTO> {
       }),
     ),
   };
+}
+
+// ---------- Agent Inbox (SP-16) ----------
+
+async function getInbox(userId: string): Promise<InboxItemDTO[]> {
+  const rows = await db
+    .select({
+      id: items.id,
+      url: items.url,
+      title: items.title,
+      groupId: items.groupId,
+      pageId: groups.pageId,
+      agentName: agents.name,
+      createdAt: items.createdAt,
+      summary: itemEnrichment.summary,
+    })
+    .from(items)
+    .innerJoin(groups, eq(groups.id, items.groupId))
+    .leftJoin(agents, eq(agents.id, items.createdByAgentId))
+    .leftJoin(itemEnrichment, eq(itemEnrichment.itemId, items.id))
+    .where(and(eq(items.userId, userId), eq(items.status, "inbox")))
+    .orderBy(asc(items.createdAt));
+  if (rows.length === 0) return [];
+  // The agent's reason and note are on its add_link log entry.
+  const logs = await db
+    .select({ itemId: activityLog.itemId, reason: activityLog.reason, after: activityLog.after })
+    .from(activityLog)
+    .where(and(eq(activityLog.userId, userId), eq(activityLog.action, "add_link"), inArray(activityLog.itemId, rows.map((r) => r.id))));
+  const byItem = new Map(logs.map((l) => [l.itemId, l]));
+  return rows.map((r) => {
+    const log = byItem.get(r.id);
+    return {
+      id: r.id,
+      url: r.url,
+      title: r.title,
+      summary: r.summary,
+      agentName: r.agentName ?? "An agent",
+      reason: log?.reason ?? null,
+      note: (log?.after as { note?: string | null } | null)?.note ?? null,
+      pageId: r.pageId,
+      groupId: r.groupId,
+      createdAt: r.createdAt.toISOString(),
+    };
+  });
+}
+
+/** Approves an inbox link: it becomes a normal link at the end of the chosen group. */
+export function approveInboxItem(userId: string, itemId: string, input: { groupId?: string; title?: string | null }) {
+  return write(userId, async (tx) => {
+    const [item] = await tx
+      .select({ groupId: items.groupId })
+      .from(items)
+      .where(and(eq(items.id, itemId), eq(items.userId, userId), eq(items.status, "inbox")));
+    if (!item) throw new NotFoundError("Inbox item");
+    const groupId = input.groupId ?? item.groupId;
+    await assertGroup(tx, userId, groupId);
+    const [{ value }] = await tx
+      .select({ value: max(items.position) })
+      .from(items)
+      .where(and(eq(items.groupId, groupId), eq(items.status, "active")));
+    const title = input.title === undefined ? undefined : input.title?.trim().slice(0, 512) || null;
+    await tx
+      .update(items)
+      .set({ status: "active", groupId, position: (value ?? -1) + 1, ...(title !== undefined ? { title } : {}) })
+      .where(eq(items.id, itemId));
+    return {};
+  });
+}
+
+/** Dismisses an inbox link (moves it to the trash). */
+export function dismissInboxItem(userId: string, itemId: string) {
+  return write(userId, async (tx) => {
+    const result = await tx
+      .update(items)
+      .set({ status: "trashed" })
+      .where(and(eq(items.id, itemId), eq(items.userId, userId), eq(items.status, "inbox")));
+    if (affected(result) === 0) throw new NotFoundError("Inbox item");
+    return {};
+  });
 }
 
 // ---------- settings ----------

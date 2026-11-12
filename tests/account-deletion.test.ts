@@ -10,7 +10,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 const url = process.env.TEST_DATABASE_URL;
 
 // Tables that intentionally have no user_id.
-const NOT_USER_OWNED = new Set(["users", "verifications", "favicons", "__drizzle_migrations"]);
+const NOT_USER_OWNED = new Set(["users", "verifications", "favicons", "oauth_clients", "__drizzle_migrations"]);
 
 describe.skipIf(!url)("account deletion", () => {
   let mod: typeof import("@/db");
@@ -88,6 +88,13 @@ describe.skipIf(!url)("account deletion", () => {
     await db.insert(s.feedItems).values({ userId, widgetId, title: "Post", url: "https://example.com/p" });
     await db.insert(s.agentScopes).values({ agentId, pageId, userId });
     await db.insert(s.activityLog).values({ userId, agentId, itemId, action: "add_link", after: { url: "x" } });
+    // Phase 5: an OAuth client is shared (not user data), but codes and tokens belong to the user.
+    const clientId = `test_${userId.slice(0, 8)}`;
+    await db.insert(s.oauthClients).values({ id: clientId, name: "Test client", redirectUris: ["https://example.com/cb"] });
+    await db.insert(s.oauthCodes).values({
+      codeHash: `c${userId}`, clientId, userId, agentId, redirectUri: "https://example.com/cb", codeChallenge: "x".repeat(43), expiresAt: now,
+    });
+    await db.insert(s.oauthTokens).values({ tokenHash: `t${userId}`, kind: "access", clientId, userId, agentId, expiresAt: now });
 
     const userOwned = (await tableNames()).filter((t) => !NOT_USER_OWNED.has(t));
     const counts = async () => {
@@ -109,6 +116,7 @@ describe.skipIf(!url)("account deletion", () => {
     for (const [table, n] of Object.entries(await counts())) {
       expect(n, `${table} should be empty after delete`).toBe(0);
     }
+    await mod.pool.query("DELETE FROM oauth_clients WHERE id = ?", [clientId]);
   });
 });
 

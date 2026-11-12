@@ -29,6 +29,13 @@
       "when": 1794492096474,
       "tag": "0003_enrichment_fulltext",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "5",
+      "when": 1794493695199,
+      "tag": "0004_agent_oauth",
+      "breakpoints": true
     }
   ]
 }

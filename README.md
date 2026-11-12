@@ -63,6 +63,17 @@ Imports add new pages after your existing ones in a single transaction, so a fai
 | Search (SP-14) | `GET /api/search?q=&pageId=&tag=&limit=` and the search bar (Ctrl/⌘+K or `/`). Keyword: title, address, tags, summary, note text, and page text through a FULLTEXT index. Meaning: Voyage AI embeddings (`voyage-4`, 1024 dimensions) in the MariaDB `VECTOR` column. The two lists are merged by reciprocal rank fusion. |
 | Consent | Settings → **Smart features** is off by default. Page text is sent to Anthropic and Voyage AI only for users who turn it on, and only if the server has `ANTHROPIC_API_KEY` / `VOYAGE_API_KEY`. Turning it on processes links already saved. Without keys, titles, snapshots and keyword search still work. |
 
+## What's in Phase 5 (agent layer)
+
+| Feature | Notes |
+| --- | --- |
+| MCP server (SP-15) | `https://syncpad.tech/mcp` (`src/app/mcp/route.ts`): Streamable HTTP, stateless, official MCP SDK. Tools: `search`, `get_page` (json or markdown), `list_pages`, `add_link`. Every result that contains saved content starts with an "untrusted data" notice. |
+| OAuth 2.1 | `src/server/oauth.ts`. Discovery at `/.well-known/oauth-authorization-server` and `/.well-known/oauth-protected-resource[/mcp]`; dynamic client registration at `/oauth/register`; consent screen at `/oauth/authorize`; `/oauth/token` (authorization code with PKCE S256 only, refresh tokens rotated on every use) and `/oauth/revoke`. Codes and tokens are stored only as SHA-256 hashes. Replayed codes or refresh tokens revoke that connection. Access tokens last 1 hour, refresh tokens 30 days. |
+| Agents (SP-18) | One agent per user + OAuth client. Read only or read and add, optional page scope, auto-approve, disconnect. Pages marked "Hide from AI agents" never appear in any result. Agents can't delete anything. 60 calls a minute and 2,000 a day per agent (10,000 on Pro). |
+| Agent Inbox (SP-16) | `add_link` creates an `inbox` item (with the agent's reason) unless auto-approve is on. Inbox button in the top bar: approve into any group, edit the title, or dismiss. |
+| Activity log (SP-17) | Every tool call is logged in `activity_log`. Added links can be undone for 30 days. Read-only entries are pruned after 30 days. |
+| Agents page | `/agents`: the MCP address, setup steps for Claude, ChatGPT and Cursor, connected agents and their controls, and the activity log. |
+
 Run the worker locally with `npm run worker` (bundles `src/worker/main.ts` to `dist/worker.cjs` and runs it with `.env`).
 
 ## Run locally

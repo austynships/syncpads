@@ -3,12 +3,14 @@
  * app (docker-compose.prod.yml "worker"), so fetching pages and calling AI
  * providers never slows down saves or page loads.
  *
- * Bundled to dist/worker.mjs by `npm run build:worker`. Locally: `npm run worker`.
+ * Bundled to dist/worker.cjs by `npm run build:worker`. Locally: `npm run worker`.
  */
 import { db, pool } from "@/db";
 import { aiAvailability, EMBEDDING_MODEL, SUMMARY_MODEL } from "@/server/enrichment/ai";
 import { processJob } from "@/server/enrichment/process";
 import { claim, enqueueMissing, releaseStale } from "@/server/enrichment/queue";
+import { pruneActivity } from "@/server/agents";
+import { pruneOAuth } from "@/server/oauth";
 
 const CONCURRENCY = Number(process.env.ENRICH_CONCURRENCY ?? 4);
 const IDLE_MS = 2000;
@@ -21,6 +23,7 @@ async function waitForDatabase() {
   for (;;) {
     try {
       await pool.query("SELECT claim_token FROM item_enrichment LIMIT 1");
+      await pool.query("SELECT 1 FROM oauth_tokens LIMIT 1"); // Phase 5 tables
       return;
     } catch (err) {
       console.log(`[worker] waiting for database: ${(err as Error).message}`);
@@ -42,6 +45,8 @@ async function main() {
     if (Date.now() - lastHousekeeping > 60_000) {
       await releaseStale(db);
       await enqueueMissing(db); // links saved before this worker existed
+      await pruneOAuth(); // expired codes and tokens
+      await pruneActivity(); // read-only agent log entries older than 30 days
       lastHousekeeping = Date.now();
     }
 

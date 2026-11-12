@@ -6,6 +6,15 @@ import { useState } from "react";
 import { Alert, AuthCard, Button, Field, linkClass } from "@/components/ui";
 import { authClient } from "@/lib/auth-client";
 
+/**
+ * Where to go after signing in: ?next= (e.g. back to an agent's consent
+ * screen), but only a path on this site, never another domain.
+ */
+function nextPath() {
+  const next = new URLSearchParams(window.location.search).get("next") ?? "";
+  return next.startsWith("/") && !next.startsWith("//") && !next.startsWith("/\\") ? next : "/app";
+}
+
 export default function LoginPage() {
   const router = useRouter();
   const [error, setError] = useState<{ kind: "error" | "warning"; text: string } | null>(null);
@@ -24,7 +33,7 @@ export default function LoginPage() {
     setLoading(false);
 
     if (!error) {
-      router.push("/app");
+      router.push(nextPath());
       router.refresh();
       return;
     }

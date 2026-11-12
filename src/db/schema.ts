@@ -173,9 +173,67 @@ export const agents = mysqlTable(
     lastUsedAt: datetime("last_used_at", { mode: "date", fsp: 3 }),
     // Revoked agents keep their row so the activity log stays intact.
     revokedAt: datetime("revoked_at", { mode: "date", fsp: 3 }),
+    // The OAuth client this connection came from (one agent per user + client).
+    clientId: varchar("client_id", { length: 64 }),
     createdAt: createdAt(),
   },
-  (t) => [index("agents_user_id_idx").on(t.userId)],
+  (t) => [index("agents_user_id_idx").on(t.userId), index("agents_client_idx").on(t.clientId)],
+);
+
+// ---------- Phase 5: OAuth 2.1 for agent connections (SP-15) ----------
+
+/**
+ * Apps registered through dynamic client registration (RFC 7591): Claude,
+ * ChatGPT, Cursor... Not user data (any user can connect the same client), so
+ * no user_id; allowlisted in the account deletion test.
+ */
+export const oauthClients = mysqlTable("oauth_clients", {
+  id: varchar("id", { length: 64 }).primaryKey(), // client_id
+  name: varchar("name", { length: 255 }).notNull(),
+  redirectUris: json<string[]>("redirect_uris").notNull(),
+  // "none" for public clients (PKCE only); otherwise a hashed client secret.
+  authMethod: mysqlEnum("auth_method", ["none", "client_secret_post", "client_secret_basic"]).notNull().default("none"),
+  secretHash: varchar("secret_hash", { length: 64 }),
+  clientUri: varchar("client_uri", { length: 512 }),
+  createdAt: createdAt(),
+});
+
+/** One-time authorization codes (10 minutes). Stored hashed. */
+export const oauthCodes = mysqlTable("oauth_codes", {
+  codeHash: varchar("code_hash", { length: 64 }).primaryKey(),
+  clientId: varchar("client_id", { length: 64 })
+    .notNull()
+    .references(() => oauthClients.id, { onDelete: "cascade" }),
+  userId: userId(),
+  agentId: varchar("agent_id", { length: 36 })
+    .notNull()
+    .references(() => agents.id, { onDelete: "cascade" }),
+  redirectUri: varchar("redirect_uri", { length: 2048 }).notNull(),
+  codeChallenge: varchar("code_challenge", { length: 128 }).notNull(),
+  resource: varchar("resource", { length: 512 }),
+  expiresAt: datetime("expires_at", { mode: "date", fsp: 3 }).notNull(),
+  usedAt: datetime("used_at", { mode: "date", fsp: 3 }),
+});
+
+/** Access tokens (1 hour) and refresh tokens (30 days, rotated on use). Stored hashed. */
+export const oauthTokens = mysqlTable(
+  "oauth_tokens",
+  {
+    tokenHash: varchar("token_hash", { length: 64 }).primaryKey(),
+    kind: mysqlEnum("kind", ["access", "refresh"]).notNull(),
+    clientId: varchar("client_id", { length: 64 })
+      .notNull()
+      .references(() => oauthClients.id, { onDelete: "cascade" }),
+    userId: userId(),
+    agentId: varchar("agent_id", { length: 36 })
+      .notNull()
+      .references(() => agents.id, { onDelete: "cascade" }),
+    resource: varchar("resource", { length: 512 }),
+    expiresAt: datetime("expires_at", { mode: "date", fsp: 3 }).notNull(),
+    revokedAt: datetime("revoked_at", { mode: "date", fsp: 3 }),
+    createdAt: createdAt(),
+  },
+  (t) => [index("oauth_tokens_agent_idx").on(t.agentId)],
 );
 
 /** Links and notes share one table. */

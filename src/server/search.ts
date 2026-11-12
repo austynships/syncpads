@@ -26,7 +26,14 @@ export type SearchResult = {
   matchedBy: ("keyword" | "meaning")[];
 };
 
-export type SearchInput = { query: string; pageId?: string; tag?: string; limit?: number };
+export type SearchInput = {
+  query: string;
+  pageId?: string;
+  tag?: string;
+  limit?: number;
+  /** Agents only: the pages this agent may see (hidden and out-of-scope pages left out). */
+  allowedPageIds?: string[];
+};
 
 /** Words to match, without LIKE wildcards. */
 export function searchTerms(query: string): string[] {
@@ -77,6 +84,13 @@ function selectItems(userId: string, where: SQL, extra: SQL = sql``) {
 function filters(input: SearchInput): SQL {
   const parts: SQL[] = [sql`1 = 1`];
   if (input.pageId) parts.push(sql`p.id = ${input.pageId}`);
+  if (input.allowedPageIds) {
+    parts.push(
+      input.allowedPageIds.length
+        ? sql`p.id IN (${sql.join(input.allowedPageIds.map((id) => sql`${id}`), sql`, `)})`
+        : sql`1 = 0`,
+    );
+  }
   if (input.tag) parts.push(sql`JSON_CONTAINS(e.tags, JSON_QUOTE(${input.tag.toLowerCase()}))`);
   return sql.join(parts, sql` AND `);
 }

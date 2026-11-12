@@ -96,3 +96,16 @@ export const IconMoon = (p: IconProps) => <Icon {...p}><path d="M20 14.5A8 8 0 0
 export const IconMonitor = (p: IconProps) => (
   <Icon {...p}><rect x="3" y="4" width="18" height="12" rx="2" /><path d="M8 20h8M12 16v4" /></Icon>
 );
+export const IconInbox = (p: IconProps) => (
+  <Icon {...p}><path d="M4 13l2.5-7.5A2 2 0 018.4 4h7.2a2 2 0 011.9 1.5L20 13" /><path d="M4 13v5a2 2 0 002 2h12a2 2 0 002-2v-5h-4.5l-1.5 2.5h-4L8.5 13H4z" /></Icon>
+);
+export const IconBot = (p: IconProps) => (
+  <Icon {...p}><rect x="4" y="8" width="16" height="12" rx="3" /><path d="M12 8V4M9 13.5h.01M15 13.5h.01M9.5 17h5" /><circle cx="12" cy="3.5" r="1" fill="currentColor" stroke="none" /></Icon>
+);
+export const IconCopy = (p: IconProps) => (
+  <Icon {...p}><rect x="8" y="8" width="12" height="12" rx="2" /><path d="M16 8V6a2 2 0 00-2-2H6a2 2 0 00-2 2v8a2 2 0 002 2h2" /></Icon>
+);
+export const IconUndo = (p: IconProps) => <Icon {...p}><path d="M9 14L4 9l5-5" /><path d="M4 9h10.5a5.5 5.5 0 010 11H11" /></Icon>;
+export const IconEyeOff = (p: IconProps) => (
+  <Icon {...p}><path d="M3 3l18 18M10.6 6.1A9.8 9.8 0 0112 6c5 0 8.5 4.5 9.5 6-.4.6-1.3 1.9-2.6 3.1M6.5 7.6C4.6 8.9 3.2 10.7 2.5 12c1 1.5 4.5 6 9.5 6 1.6 0 3-.4 4.3-1.1" /><path d="M9.9 9.9a3 3 0 004.2 4.2" /></Icon>
+);

@@ -40,10 +40,25 @@ export type SettingsDTO = {
   aiAvailable: { summaries: boolean; embeddings: boolean }; // provider keys configured on the server
 };
 
+/** A link an agent added, waiting in the Agent Inbox for review (SP-16). */
+export type InboxItemDTO = {
+  id: string;
+  url: string | null;
+  title: string | null;
+  summary: string | null;
+  agentName: string;
+  reason: string | null;
+  note: string | null;
+  pageId: string; // suggested page and group (where it goes when approved)
+  groupId: string;
+  createdAt: string;
+};
+
 export type StateDTO = {
   revision: number;
   settings: SettingsDTO;
   pages: PageDTO[];
+  inbox: InboxItemDTO[];
 };
 
 /** Every write returns the new revision so clients know whether they missed changes. */
