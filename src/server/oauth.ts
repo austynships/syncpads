@@ -243,7 +243,7 @@ export function withParams(base: string, params: Record<string, string | null | 
  * The user allowed the connection: find or create their agent for this client,
  * set its permission, and issue a one-time code.
  */
-export async function approveAuthorization(userId: string, req: AuthorizeRequest, permission: "read" | "read_add") {
+export async function approveAuthorization(userId: string, req: AuthorizeRequest, permission: "read" | "read_add" | "read_add_context") {
   const [existing] = await db
     .select()
     .from(agents)
@@ -373,7 +373,7 @@ export type AgentContext = {
   agentName: string;
   userId: string;
   clientId: string;
-  permission: "read" | "read_add";
+  permission: "read" | "read_add" | "read_add_context";
   autoApprove: boolean;
   plan: string;
   expiresAt: Date;

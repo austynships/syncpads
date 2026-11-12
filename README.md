@@ -72,7 +72,9 @@ Imports add new pages after your existing ones in a single transaction, so a fai
 | Agents (SP-18) | One agent per user + OAuth client. Read only or read and add, optional page scope, auto-approve, disconnect. Pages marked "Hide from AI agents" never appear in any result. Agents can't delete anything. 60 calls a minute and 2,000 a day per agent (10,000 on Pro). |
 | Agent Inbox (SP-16) | `add_link` creates an `inbox` item (with the agent's reason) unless auto-approve is on. Inbox button in the top bar: approve into any group, edit the title, or dismiss. |
 | Activity log (SP-17) | Every tool call is logged in `activity_log`. Added links can be undone for 30 days. Read-only entries are pruned after 30 days. |
-| Agents page | `/agents`: the MCP address, setup steps for Claude, ChatGPT and Cursor, connected agents and their controls, and the activity log. |
+| Agents page | `/agents`: the MCP address, setup steps for Claude, ChatGPT and Cursor, the user's "How I work" notes, connected agents and their controls, and the activity log. |
+| Conversation context | `save_context`: an agent saves a distilled note from a chat (title, summary, decisions, open questions, related links) as a note item, into the Agent Inbox unless auto-approve is on. Needs the "Read, add links and save context" permission. Secrets are removed first (`src/server/redact.ts`: provider keys, tokens, JWTs, private keys, labeled passwords, card numbers, URL credentials and token query parameters). Notes show who saved them, and other agents see them labeled as agent-written, untrusted data. |
+| How I work | `get_context`: the user's own "How I work" notes (`user_settings.context_profile`, edited on `/agents`), the pages the agent can see, the 5 most recent agent-saved notes, and search results for an optional topic. The server's instructions tell agents to call it first. |
 
 Run the worker locally with `npm run worker` (bundles `src/worker/main.ts` to `dist/worker.cjs` and runs it with `.env`).
 

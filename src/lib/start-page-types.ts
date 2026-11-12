@@ -14,6 +14,7 @@ export type ItemDTO = {
   position: number;
   summary?: string | null; // from enrichment (SP-13), when smart features are on
   tags?: string[] | null;
+  savedBy?: string | null; // name of the agent that added it, if one did
 };
 
 export type GroupDTO = {
@@ -43,8 +44,10 @@ export type SettingsDTO = {
 /** A link an agent added, waiting in the Agent Inbox for review (SP-16). */
 export type InboxItemDTO = {
   id: string;
+  type: "link" | "note"; // notes are context saved from a conversation
   url: string | null;
   title: string | null;
+  noteBody: string | null; // sanitized HTML
   summary: string | null;
   agentName: string;
   reason: string | null;

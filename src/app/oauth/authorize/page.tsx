@@ -63,10 +63,15 @@ export default async function AuthorizePage({ searchParams }: { searchParams: Pr
         <fieldset className="space-y-2">
           <legend className="mb-2 text-sm font-medium text-slate-800">What can it do?</legend>
           <Choice
-            value="read_add"
+            value="read_add_context"
             defaultChecked
-            title="Read and add"
-            body="Search and read your pages, and suggest links. Suggestions wait in your Agent Inbox until you approve them."
+            title="Read, add links and save context"
+            body="Search and read your pages, suggest links, and save decisions and summaries from your conversations. Everything waits in your Agent Inbox until you approve it."
+          />
+          <Choice
+            value="read_add"
+            title="Read and add links"
+            body="Search and read your pages, and suggest links for your inbox. It can't save conversation context."
           />
           <Choice value="read" title="Read only" body="Search and read your pages. It can't add anything." />
         </fieldset>

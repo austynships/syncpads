@@ -14,7 +14,8 @@ export async function POST(request: Request) {
 
   const form = new URLSearchParams(await request.text());
   const decision = form.get("decision");
-  const permission = form.get("permission") === "read" ? "read" : "read_add";
+  const requested = form.get("permission");
+  const permission = requested === "read" || requested === "read_add" ? requested : "read_add_context";
   form.delete("decision");
   form.delete("permission");
 

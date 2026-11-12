@@ -196,11 +196,11 @@ describe.skipIf(!url)("agents, OAuth and MCP", () => {
     expect(res.headers.get("www-authenticate")).toContain("/.well-known/oauth-protected-resource/mcp");
   });
 
-  it("serves the four tools and never shows hidden pages", async () => {
+  it("serves the tools and never shows hidden pages", async () => {
     const init = await call("initialize", { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "test", version: "1" } });
     expect(init.body.result.serverInfo.name).toBe("syncpads");
     const list = await call("tools/list", {});
-    expect(list.body.result.tools.map((t: { name: string }) => t.name).sort()).toEqual(["add_link", "get_page", "list_pages", "search"]);
+    expect(list.body.result.tools.map((t: { name: string }) => t.name).sort()).toEqual(["add_link", "get_context", "get_page", "list_pages", "save_context", "search"]);
 
     const pages = await tool("list_pages");
     expect(pages.json.pages.map((p: { name: string }) => p.name)).toEqual(["Home", "Work"]); // not "Private"

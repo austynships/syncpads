@@ -99,8 +99,9 @@ export const schemas = {
         ])
         .optional(),
       aiEnabled: z.boolean().optional(),
+      contextProfile: z.string().max(10_000, "Keep it under 10,000 characters.").nullable().optional(),
     })
-    .refine((v) => v.theme !== undefined || v.wallpaper !== undefined || v.aiEnabled !== undefined, "Nothing to update."),
+    .refine((v) => Object.keys(v).length > 0, "Nothing to update."),
 
   createPage: z.object({ name }),
   updatePage: z
@@ -148,7 +149,7 @@ export const schemas = {
   updateAgent: z
     .object({
       name: name.optional(),
-      permission: z.enum(["read", "read_add"]).optional(),
+      permission: z.enum(["read", "read_add", "read_add_context"]).optional(),
       autoApprove: z.boolean().optional(),
       pageIds: z.array(id).max(500).nullable().optional(),
     })

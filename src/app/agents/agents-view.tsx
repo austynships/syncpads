@@ -8,7 +8,7 @@ type Agent = {
   id: string;
   name: string;
   client: "claude" | "chatgpt" | "cursor" | "other";
-  permission: "read" | "read_add";
+  permission: "read" | "read_add" | "read_add_context";
   autoApprove: boolean;
   lastUsedAt: string | null;
   createdAt: string;
@@ -19,7 +19,16 @@ type Entry = {
   id: string;
   action: string;
   agentName: string | null;
-  after: { query?: string; results?: number; page?: string; url?: string; title?: string | null; status?: string } | null;
+  after: {
+    query?: string;
+    topic?: string | null;
+    results?: number;
+    page?: string;
+    url?: string;
+    title?: string | null;
+    status?: string;
+    secretsRemoved?: number;
+  } | null;
   reason: string | null;
   createdAt: string;
   undoneAt: string | null;
@@ -68,13 +77,15 @@ const CLIENTS = [
 
 const ACTION_LABEL: Record<string, string> = {
   add_link: "Added a link",
+  save_context: "Saved context",
+  get_context: "Read your context",
   search: "Searched",
   get_page: "Read a page",
   list_pages: "Listed your pages",
 };
 
 export function AgentsView() {
-  const [data, setData] = useState<{ mcpUrl: string; agents: Agent[]; pages: Page[] } | null>(null);
+  const [data, setData] = useState<{ mcpUrl: string; contextProfile: string; agents: Agent[]; pages: Page[] } | null>(null);
   const [entries, setEntries] = useState<Entry[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [showReads, setShowReads] = useState(false);
@@ -82,7 +93,7 @@ export function AgentsView() {
   const load = useCallback(async () => {
     try {
       const [a, log] = await Promise.all([
-        api<{ mcpUrl: string; agents: Agent[]; pages: Page[] }>("GET", "/api/agents"),
+        api<{ mcpUrl: string; contextProfile: string; agents: Agent[]; pages: Page[] }>("GET", "/api/agents"),
         api<{ entries: Entry[] }>("GET", "/api/activity"),
       ]);
       setData(a);
@@ -110,13 +121,15 @@ export function AgentsView() {
     return <p className="mt-10 text-sm text-slate-500">{error ?? "Loading…"}</p>;
   }
 
-  const visibleEntries = showReads ? entries : entries.filter((e) => e.action === "add_link");
+  const visibleEntries = showReads ? entries : entries.filter((e) => e.action === "add_link" || e.action === "save_context");
 
   return (
     <div className="mt-8 space-y-8">
       {error && <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">{error}</p>}
 
       <ConnectCard mcpUrl={data.mcpUrl} />
+
+      <HowIWorkCard initial={data.contextProfile} onSave={(text) => run(() => api("PATCH", "/api/settings", { contextProfile: text || null }))} />
 
       <section>
         <h2 className="text-lg font-bold text-slate-900">Connected agents</h2>
@@ -174,12 +187,14 @@ export function AgentsView() {
                   {e.action === "search" && e.after?.query ? `: "${e.after.query}"` : ""}
                   {e.action === "get_page" && e.after?.page ? `: ${e.after.page}` : ""}
                 </p>
-                {e.action === "add_link" && (
+                {(e.action === "add_link" || e.action === "save_context") && (
                   <p className="truncate text-slate-600">
                     {e.itemTitle || e.after?.title || e.itemUrl || e.after?.url}
                     {e.after?.status === "inbox" && !e.undoneAt ? " · sent to your inbox" : ""}
+                    {e.after?.secretsRemoved ? ` · ${e.after.secretsRemoved} possible secret${e.after.secretsRemoved === 1 ? "" : "s"} removed` : ""}
                   </p>
                 )}
+                {e.action === "get_context" && e.after?.topic && <p className="truncate text-slate-600">Topic: {e.after.topic}</p>}
                 {e.reason && <p className="mt-0.5 text-xs text-slate-500">&ldquo;{e.reason}&rdquo;</p>}
                 <p className="mt-0.5 text-xs text-slate-400">
                   {new Date(e.createdAt).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}
@@ -197,6 +212,50 @@ export function AgentsView() {
         </ul>
       </section>
     </div>
+  );
+}
+
+/** "How I work": standing context every connected agent reads first (get_context). */
+function HowIWorkCard({ initial, onSave }: { initial: string; onSave: (text: string) => void }) {
+  const [text, setText] = useState(initial);
+  const [saved, setSaved] = useState(false);
+  const changed = text !== initial;
+
+  return (
+    <section className="rounded-2xl border border-slate-900/[0.07] bg-white p-6 shadow-sm">
+      <h2 className="text-lg font-bold text-slate-900">How I work</h2>
+      <p className="mt-1 text-sm text-slate-600">
+        Tell every AI you connect how you like to work. They read this first, before anything else in SyncPads. Don&apos;t
+        include passwords or keys.
+      </p>
+      <textarea
+        value={text}
+        onChange={(e) => {
+          setText(e.target.value);
+          setSaved(false);
+        }}
+        rows={7}
+        maxLength={10_000}
+        placeholder={"I'm a freelance designer. Clients: Acme (weekly reports, Fridays) and Globex.\nWe use Figma for design and Linear for tasks.\nKeep answers short. Use British spelling."}
+        className="field mt-4 resize-y font-normal leading-relaxed"
+        aria-label="How I work"
+      />
+      <div className="mt-3 flex items-center justify-between gap-3">
+        <span className="text-xs text-slate-400">{text.length.toLocaleString()} / 10,000</span>
+        <button
+          type="button"
+          className="btn-primary"
+          disabled={!changed && !saved}
+          onClick={() => {
+            onSave(text.trim());
+            setSaved(true);
+          }}
+        >
+          {saved && !changed ? <IconCheck size={15} /> : null}
+          {saved && !changed ? "Saved" : "Save"}
+        </button>
+      </div>
+    </section>
   );
 }
 
@@ -241,6 +300,10 @@ function ConnectCard({ mcpUrl }: { mcpUrl: string }) {
           </button>
         ))}
       </div>
+      <p className="mt-4 rounded-xl bg-slate-50 px-4 py-3 text-sm text-slate-700">
+        Once connected, ask your AI to &ldquo;check SyncPads&rdquo; for anything you&apos;ve saved, or say{" "}
+        <strong>&ldquo;save this to SyncPads&rdquo;</strong> to keep a conversation&apos;s decisions and links for every AI you use.
+      </p>
       <ol className="mt-4 space-y-2 text-sm text-slate-700">
         {client.steps.map((step, i) =>
           step.startsWith("CODE:") ? (
@@ -306,6 +369,7 @@ function AgentCard({
             onChange={(e) => onChange({ permission: e.target.value as Agent["permission"] })}
             className="field"
           >
+            <option value="read_add_context">Read, add links and save context</option>
             <option value="read_add">Read and add links</option>
             <option value="read">Read only</option>
           </select>
@@ -320,7 +384,7 @@ function AgentCard({
           />
           <span>
             <span className="block font-medium text-slate-800">Skip the inbox</span>
-            <span className="block text-xs text-slate-500">Links it adds go straight onto your page.</span>
+            <span className="block text-xs text-slate-500">Links and context it adds go straight onto your page.</span>
           </span>
         </label>
       </div>

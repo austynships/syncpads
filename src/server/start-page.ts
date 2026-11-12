@@ -127,6 +127,9 @@ export async function getState(userId: string): Promise<StateDTO> {
     .from(items)
     .where(and(eq(items.userId, userId), eq(items.status, "active")))
     .orderBy(asc(items.position));
+  const agentNames = new Map(
+    (await db.select({ id: agents.id, name: agents.name }).from(agents).where(eq(agents.userId, userId))).map((a) => [a.id, a.name]),
+  );
   const enrichmentRows = await db
     .select({ itemId: itemEnrichment.itemId, summary: itemEnrichment.summary, tags: itemEnrichment.tags })
     .from(itemEnrichment)
@@ -146,6 +149,7 @@ export async function getState(userId: string): Promise<StateDTO> {
       position: i.position,
       summary: e?.summary ?? null,
       tags: e?.tags ?? null,
+      savedBy: i.createdByAgentId ? (agentNames.get(i.createdByAgentId) ?? "An agent") : null,
     });
     itemsByGroup.set(i.groupId, list);
   }
@@ -184,8 +188,10 @@ async function getInbox(userId: string): Promise<InboxItemDTO[]> {
   const rows = await db
     .select({
       id: items.id,
+      type: items.type,
       url: items.url,
       title: items.title,
+      noteBody: items.noteBody,
       groupId: items.groupId,
       pageId: groups.pageId,
       agentName: agents.name,
@@ -209,8 +215,10 @@ async function getInbox(userId: string): Promise<InboxItemDTO[]> {
     const log = byItem.get(r.id);
     return {
       id: r.id,
+      type: r.type,
       url: r.url,
       title: r.title,
+      noteBody: r.noteBody,
       summary: r.summary,
       agentName: r.agentName ?? "An agent",
       reason: log?.reason ?? null,
@@ -259,7 +267,10 @@ export function dismissInboxItem(userId: string, itemId: string) {
 
 // ---------- settings ----------
 
-export function updateSettings(userId: string, input: { theme?: Theme; wallpaper?: Wallpaper; aiEnabled?: boolean }) {
+export function updateSettings(
+  userId: string,
+  input: { theme?: Theme; wallpaper?: Wallpaper; aiEnabled?: boolean; contextProfile?: string | null },
+) {
   return write(userId, async (tx) => {
     await tx.update(userSettings).set(input).where(eq(userSettings.userId, userId));
     // Turning smart features on: summarize and embed what's already saved.

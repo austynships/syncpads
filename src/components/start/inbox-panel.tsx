@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { IconBot, IconCheck, IconInbox, IconX } from "@/components/icons";
+import { IconBot, IconCheck, IconInbox, IconNote, IconX } from "@/components/icons";
 import type { InboxItemDTO, PageDTO } from "@/lib/start-page-types";
 import { displayHost } from "@/lib/url";
 import { Favicon } from "./favicon";
@@ -11,7 +11,7 @@ type Props = {
   inbox: InboxItemDTO[];
   pages: PageDTO[];
   onClose: () => void;
-  onApprove: (item: InboxItemDTO, groupId: string, title: string) => void;
+  onApprove: (item: InboxItemDTO, groupId: string, title: string | undefined) => void;
   onDismiss: (item: InboxItemDTO) => void;
 };
 
@@ -35,7 +35,7 @@ export function InboxPanel({ inbox, pages, onClose, onApprove, onDismiss }: Prop
         <header className="flex items-center justify-between border-b border-slate-900/[0.07] px-6 py-4 dark:border-white/10">
           <div>
             <h2 className="text-lg font-bold text-slate-900 dark:text-white">Agent Inbox</h2>
-            <p className="text-xs text-slate-500 dark:text-slate-400">Links your connected agents suggested. Nothing is added until you approve it.</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400">Links and context your agents saved. Nothing is added until you approve it.</p>
           </div>
           <button type="button" className="icon-btn" onClick={onClose} aria-label="Close inbox">
             <IconX size={18} />
@@ -50,7 +50,7 @@ export function InboxPanel({ inbox, pages, onClose, onApprove, onDismiss }: Prop
               </span>
               <p className="mt-4 font-semibold text-slate-900 dark:text-white">You&apos;re all caught up</p>
               <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                When an agent suggests a link, it shows up here for you to review.
+                When an agent suggests a link or saves context from a conversation, it shows up here for you to review.
               </p>
               <Link href="/agents" className="btn-secondary mt-5">
                 <IconBot size={15} />
@@ -89,9 +89,22 @@ function InboxCard({
   const [title, setTitle] = useState(item.title ?? "");
   const [groupId, setGroupId] = useState(item.groupId);
   const host = item.url ? displayHost(item.url) : "";
+  const isNote = item.type === "note";
 
   return (
     <article className="rounded-2xl border border-slate-900/[0.08] p-4 dark:border-white/10">
+      {isNote ? (
+        <div>
+          <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-sync-700 dark:text-sync-300">
+            <IconNote size={13} />
+            Saved context
+          </p>
+          <div
+            className="note-content mt-2 max-h-64 overflow-y-auto rounded-xl border border-blue-100 bg-blue-50/70 px-3 py-2.5 text-sm text-slate-800 dark:border-blue-400/15 dark:bg-blue-400/10 dark:text-slate-200"
+            dangerouslySetInnerHTML={{ __html: item.noteBody ?? "" }}
+          />
+        </div>
+      ) : (
       <div className="flex items-start gap-3">
         <span className="mt-0.5">
           <Favicon url={item.url} size={20} />
@@ -103,6 +116,7 @@ function InboxCard({
           <p className="truncate text-xs text-slate-500 dark:text-slate-400">{host}</p>
         </div>
       </div>
+      )}
 
       <p className="mt-3 flex items-center gap-1.5 text-xs font-medium text-slate-600 dark:text-slate-300">
         <IconBot size={14} className="text-sync-600 dark:text-sync-400" />
@@ -118,13 +132,15 @@ function InboxCard({
       {item.summary && <p className="mt-2 text-xs leading-relaxed text-slate-500 dark:text-slate-400">{item.summary}</p>}
 
       <div className="mt-3 space-y-2">
-        <input
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          placeholder="Title (optional)"
-          className="field"
-          aria-label="Title"
-        />
+        {!isNote && (
+          <input
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="Title (optional)"
+            className="field"
+            aria-label="Title"
+          />
+        )}
         <select value={groupId} onChange={(e) => setGroupId(e.target.value)} className="field" aria-label="Add to group">
           {pages.map((p) => (
             <optgroup key={p.id} label={p.name}>
@@ -143,7 +159,7 @@ function InboxCard({
           <IconX size={14} />
           Dismiss
         </button>
-        <button type="button" className="btn-primary" onClick={() => onApprove(item, groupId, title)}>
+        <button type="button" className="btn-primary" onClick={() => onApprove(item, groupId, isNote ? undefined : title)}>
           <IconCheck size={14} />
           Approve
         </button>

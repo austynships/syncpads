@@ -145,10 +145,11 @@ export function StartPage({ userId, email }: { userId: string; email: string }) 
   const setHiddenFromAgents = (id: string, hiddenFromAgents: boolean) =>
     mutate((s) => mapPage(s, id, (p) => ({ ...p, hiddenFromAgents })), () => api("PATCH", `/api/pages/${id}`, { hiddenFromAgents }));
   // Agent Inbox (SP-16). Both reload, so the approved link appears in its group.
-  const approveInbox = (id: string, groupId: string, title: string) =>
+  const approveInbox = (id: string, groupId: string, title: string | undefined) =>
     mutate(
       (s) => ({ ...s, inbox: (s.inbox ?? []).filter((i) => i.id !== id) }),
-      () => api("POST", `/api/inbox/${id}/approve`, { groupId, title: title.trim() || null }),
+      () =>
+        api("POST", `/api/inbox/${id}/approve`, title === undefined ? { groupId } : { groupId, title: title.trim() || null }),
     ).then((r) => r && refresh());
   const dismissInbox = (id: string) =>
     mutate(

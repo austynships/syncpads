@@ -36,6 +36,13 @@
       "when": 1794493695199,
       "tag": "0004_agent_oauth",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "5",
+      "when": 1794499191145,
+      "tag": "0005_agent_context",
+      "breakpoints": true
     }
   ]
 }

@@ -3,7 +3,7 @@
 import dynamic from "next/dynamic";
 import { useState } from "react";
 import type { ItemDTO } from "@/lib/start-page-types";
-import { IconPencil, IconX } from "@/components/icons";
+import { IconBot, IconPencil, IconX } from "@/components/icons";
 import { IconButton } from "./link-item";
 
 // The editor is only loaded when someone edits a note.
@@ -34,6 +34,12 @@ export function NoteItem({ item, startEditing = false, onSave, onDelete }: Props
 
   return (
     <div className="group/item relative rounded-xl border border-blue-100 bg-blue-50/70 px-3 py-2.5 text-slate-800 dark:border-blue-400/15 dark:bg-blue-400/10 dark:text-slate-200">
+      {item.savedBy && (
+        <p className="mb-1.5 inline-flex items-center gap-1 rounded-full bg-white/80 px-2 py-0.5 text-[10px] font-semibold text-slate-600 ring-1 ring-slate-900/5 dark:bg-white/10 dark:text-slate-300">
+          <IconBot size={11} />
+          From {item.savedBy}
+        </p>
+      )}
       {item.noteBody ? (
         <div
           className="note-content text-sm"

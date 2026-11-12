@@ -11,12 +11,14 @@
  */
 import { and, asc, desc, eq, inArray, isNull, max, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { activityLog, agents, agentScopes, groups, itemEnrichment, items, pages } from "@/db/schema";
+import { activityLog, agents, agentScopes, groups, itemEnrichment, items, pages, userSettings } from "@/db/schema";
 import { redis } from "@/lib/redis";
 import { displayHost, normalizeUrl } from "@/lib/url";
 import { noteText } from "./enrichment/extract";
 import { enqueue } from "./enrichment/queue";
+import { sanitizeNoteHtml } from "@/lib/sanitize";
 import { revokeAgentTokens, type AgentContext } from "./oauth";
+import { redactSecrets, redactUrl } from "./redact";
 import { search } from "./search";
 
 /** A plain message the agent can act on (returned as a tool error). */
@@ -147,9 +149,11 @@ export async function toolGetPage(ctx: AgentContext, input: { page_id: string; f
           noteBody: items.noteBody,
           summary: itemEnrichment.summary,
           tags: itemEnrichment.tags,
+          savedBy: agents.name,
         })
         .from(items)
         .leftJoin(itemEnrichment, eq(itemEnrichment.itemId, items.id))
+        .leftJoin(agents, eq(agents.id, items.createdByAgentId))
         .where(and(inArray(items.groupId, groupRows.map((g) => g.id)), eq(items.status, "active")))
         .orderBy(asc(items.position))
     : [];
@@ -164,7 +168,7 @@ export async function toolGetPage(ctx: AgentContext, input: { page_id: string; f
         .map((i) =>
           i.type === "link"
             ? { type: "link" as const, title: i.title || displayHost(i.url ?? ""), url: i.url, summary: i.summary, tags: i.tags ?? [] }
-            : { type: "note" as const, text: noteText(i.noteBody ?? "") },
+            : { type: "note" as const, text: noteText(i.noteBody ?? ""), saved_by: i.savedBy ?? "user" },
         ),
     })),
   };
@@ -174,7 +178,10 @@ export async function toolGetPage(ctx: AgentContext, input: { page_id: string; f
 
 export function pageMarkdown(page: {
   name: string;
-  groups: { name: string; items: ({ type: "link"; title: string; url: string | null; summary: string | null } | { type: "note"; text: string })[] }[];
+  groups: {
+    name: string;
+    items: ({ type: "link"; title: string; url: string | null; summary: string | null } | { type: "note"; text: string; saved_by?: string })[];
+  }[];
 }) {
   const lines = [`# ${page.name}`];
   for (const g of page.groups) {
@@ -182,7 +189,10 @@ export function pageMarkdown(page: {
     if (g.items.length === 0) lines.push("_(empty)_");
     for (const i of g.items) {
       if (i.type === "link") lines.push(`- [${i.title.replace(/[[\]]/g, "")}](${i.url})${i.summary ? ` — ${i.summary}` : ""}`);
-      else lines.push(...i.text.split("\n").map((l, n) => (n === 0 ? `- Note: ${l}` : `  ${l}`)));
+      else {
+        const label = i.saved_by && i.saved_by !== "user" ? `Note saved by ${i.saved_by}` : "Note";
+        lines.push(...i.text.split("\n").map((l, n) => (n === 0 ? `- ${label}: ${l}` : `  ${l}`)));
+      }
     }
   }
   return lines.join("\n");
@@ -192,7 +202,7 @@ export async function toolAddLink(
   ctx: AgentContext,
   input: { url: string; title?: string; note?: string; page_id?: string; reason?: string },
 ) {
-  if (ctx.permission !== "read_add") {
+  if (ctx.permission === "read") {
     throw new AgentError("This agent has read-only access. The user can allow adding links in SyncPads → Agents.");
   }
   const url = normalizeUrl(input.url);
@@ -260,6 +270,197 @@ export async function toolAddLink(
   };
 }
 
+// ---------- context (save_context, get_context) ----------
+
+const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
+
+export type SaveContextInput = {
+  title: string;
+  summary: string;
+  decisions?: string[];
+  open_questions?: string[];
+  links?: { url: string; title?: string }[];
+  page_id?: string;
+  reason?: string;
+};
+
+/** Builds the note's HTML: title, summary, decisions, open questions, links, and who saved it. */
+export function contextNoteHtml(input: SaveContextInput, agentName: string, date = new Date()) {
+  const list = (label: string, entries?: string[]) =>
+    entries?.length ? `<p><strong>${label}</strong></p><ul>${entries.map((e) => `<li>${esc(e)}</li>`).join("")}</ul>` : "";
+  const links = input.links?.length
+    ? `<p><strong>Links</strong></p><ul>${input.links
+        .map((l) => `<li><a href="${esc(l.url)}">${esc(l.title?.trim() || l.url)}</a></li>`)
+        .join("")}</ul>`
+    : "";
+  const paragraphs = input.summary
+    .split(/\n{2,}/)
+    .map((p) => p.trim())
+    .filter(Boolean)
+    .map((p) => `<p>${esc(p)}</p>`)
+    .join("");
+  const when = date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  return sanitizeNoteHtml(
+    `<h3>${esc(input.title)}</h3>${paragraphs}${list("Decisions", input.decisions)}${list("Open questions", input.open_questions)}${links}<p><em>Saved by ${esc(agentName)} · ${when}</em></p>`,
+  );
+}
+
+/**
+ * Saves distilled context from a conversation (a decision, a summary, open
+ * questions, related links) as a note. Secrets are removed first. It goes to
+ * the Agent Inbox unless the user lets this agent skip it.
+ */
+export async function toolSaveContext(ctx: AgentContext, input: SaveContextInput) {
+  if (ctx.permission !== "read_add_context") {
+    throw new AgentError(
+      "This agent can't save context. The user can allow it in SyncPads → Agents (access: Read, add links and save context).",
+    );
+  }
+
+  // Remove anything that looks like a secret, everywhere.
+  let removed = 0;
+  const clean = (s: string) => {
+    const r = redactSecrets(s);
+    removed += r.removed;
+    return r.text;
+  };
+  const links: { url: string; title?: string }[] = [];
+  for (const link of input.links ?? []) {
+    const normalized = normalizeUrl(link.url);
+    if (!normalized) continue;
+    const r = redactUrl(normalized);
+    removed += r.removed;
+    links.push({ url: r.url, title: link.title ? clean(link.title) : undefined });
+  }
+  const cleaned: SaveContextInput = {
+    title: clean(input.title).slice(0, 200),
+    summary: clean(input.summary),
+    decisions: input.decisions?.map(clean),
+    open_questions: input.open_questions?.map(clean),
+    links,
+  };
+  const reason = input.reason ? clean(input.reason) : null;
+
+  const visible = await visiblePages(ctx);
+  const page = input.page_id ? visible.find((p) => p.id === input.page_id) : visible[0];
+  if (!page) {
+    throw new AgentError(
+      input.page_id
+        ? "That page isn't available to this agent. Call list_pages to see the pages you can use."
+        : "This agent can't see any pages, so it can't save context. The user can change that in SyncPads → Agents.",
+    );
+  }
+
+  const status: "active" | "inbox" = ctx.autoApprove ? "active" : "inbox";
+  const itemId = crypto.randomUUID();
+  let groupId = "";
+  await db.transaction(async (tx) => {
+    const [first] = await tx.select({ id: groups.id }).from(groups).where(eq(groups.pageId, page.id)).orderBy(asc(groups.position)).limit(1);
+    groupId = first?.id ?? crypto.randomUUID();
+    if (!first) await tx.insert(groups).values({ id: groupId, userId: ctx.userId, pageId: page.id, name: "Links", position: 0 });
+    const [{ value }] = await tx.select({ value: max(items.position) }).from(items).where(eq(items.groupId, groupId));
+    await tx.insert(items).values({
+      id: itemId,
+      userId: ctx.userId,
+      groupId,
+      type: "note",
+      title: cleaned.title,
+      noteBody: contextNoteHtml(cleaned, ctx.agentName),
+      position: (value ?? -1) + 1,
+      source: "agent",
+      status,
+      createdByAgentId: ctx.agentId,
+    });
+    await enqueue(tx, ctx.userId, [itemId]); // indexed for search like any note
+  });
+
+  await logActivity(ctx, "save_context", {
+    itemId,
+    after: { title: cleaned.title, status, pageId: page.id, page: page.name, groupId, links: links.length, secretsRemoved: removed },
+    reason,
+  });
+  await bumpRevision(ctx.userId);
+  return {
+    status: status === "inbox" ? "saved_to_inbox" : "saved",
+    title: cleaned.title,
+    page: page.name,
+    secrets_removed: removed,
+    message:
+      (status === "inbox"
+        ? "Saved to the user's Agent Inbox. It joins their page once they approve it."
+        : "Saved to the page (this agent's additions are approved automatically).") +
+      (removed ? ` ${removed} thing${removed === 1 ? "" : "s"} that looked like a secret (key, token or password) ${removed === 1 ? "was" : "were"} removed first.` : ""),
+  };
+}
+
+/**
+ * Everything an agent should know before working with this user: their own
+ * "How I work" notes, the pages it can see, recently saved context, and, for
+ * a topic, the most relevant saved links and notes.
+ */
+export async function toolGetContext(ctx: AgentContext, input: { topic?: string }) {
+  const visible = await visiblePages(ctx);
+  const [settings] = await db
+    .select({ profile: userSettings.contextProfile })
+    .from(userSettings)
+    .where(eq(userSettings.userId, ctx.userId));
+
+  const recent = visible.length
+    ? await db
+        .select({
+          title: items.title,
+          noteBody: items.noteBody,
+          createdAt: items.createdAt,
+          page: pages.name,
+          savedBy: agents.name,
+        })
+        .from(items)
+        .innerJoin(groups, eq(groups.id, items.groupId))
+        .innerJoin(pages, eq(pages.id, groups.pageId))
+        .innerJoin(agents, eq(agents.id, items.createdByAgentId))
+        .where(
+          and(
+            eq(items.userId, ctx.userId),
+            eq(items.type, "note"),
+            eq(items.status, "active"),
+            inArray(pages.id, visible.map((p) => p.id)),
+          ),
+        )
+        .orderBy(desc(items.createdAt))
+        .limit(5)
+    : [];
+
+  const relevant = input.topic
+    ? (
+        await search(ctx.userId, { query: input.topic, limit: 8, allowedPageIds: visible.map((p) => p.id) })
+      ).results.map((r) => ({
+        type: r.type,
+        title: r.title,
+        url: r.url,
+        summary: r.summary,
+        note_text: r.snippet,
+        page: r.pageName,
+        group: r.groupName,
+      }))
+    : [];
+
+  await logActivity(ctx, "get_context", { after: { topic: input.topic ?? null } });
+  return {
+    how_i_work: settings?.profile?.trim()
+      ? { written_by: "the user", text: settings.profile.trim() }
+      : { written_by: "the user", text: null, note: "The user hasn't written their How I work notes yet." },
+    pages: visible.map((p) => ({ page_id: p.id, name: p.name })),
+    recent_context: recent.map((n) => ({
+      title: n.title,
+      text: noteText(n.noteBody ?? "").slice(0, 1500),
+      saved_by: n.savedBy,
+      saved_at: n.createdAt.toISOString().slice(0, 10),
+      page: n.page,
+    })),
+    relevant,
+  };
+}
+
 // ---------- the user's controls (Agents page) ----------
 
 export async function listAgents(userId: string) {
@@ -283,7 +484,7 @@ export async function listAgents(userId: string) {
 export async function updateAgent(
   userId: string,
   agentId: string,
-  input: { name?: string; permission?: "read" | "read_add"; autoApprove?: boolean; pageIds?: string[] | null },
+  input: { name?: string; permission?: "read" | "read_add" | "read_add_context"; autoApprove?: boolean; pageIds?: string[] | null },
 ) {
   const [agent] = await db.select().from(agents).where(and(eq(agents.id, agentId), eq(agents.userId, userId), isNull(agents.revokedAt)));
   if (!agent) return false;
@@ -313,6 +514,7 @@ export async function revokeAgent(userId: string, agentId: string) {
 }
 
 const UNDO_DAYS = 30;
+const UNDOABLE = new Set(["add_link", "save_context"]);
 
 export async function listActivity(userId: string, limit = 100) {
   const rows = await db
@@ -338,14 +540,15 @@ export async function listActivity(userId: string, limit = 100) {
   const cutoff = Date.now() - UNDO_DAYS * 86_400_000;
   return rows.map((r) => ({
     ...r,
-    canUndo: r.action === "add_link" && !r.undoneAt && r.itemStatus !== "trashed" && r.itemStatus !== null && r.createdAt.getTime() > cutoff,
+    canUndo:
+      UNDOABLE.has(r.action) && !r.undoneAt && r.itemStatus !== "trashed" && r.itemStatus !== null && r.createdAt.getTime() > cutoff,
   }));
 }
 
-/** Undoes an agent's add_link (moves the link to the trash). Allowed for 30 days. */
+/** Undoes an agent's add_link or save_context (moves the item to the trash). Allowed for 30 days. */
 export async function undoActivity(userId: string, activityId: string) {
   const [entry] = await db.select().from(activityLog).where(and(eq(activityLog.id, activityId), eq(activityLog.userId, userId)));
-  if (!entry || entry.action !== "add_link" || entry.undoneAt || !entry.itemId) return false;
+  if (!entry || !UNDOABLE.has(entry.action) || entry.undoneAt || !entry.itemId) return false;
   if (entry.createdAt.getTime() < Date.now() - UNDO_DAYS * 86_400_000) return false;
   await db.transaction(async (tx) => {
     await tx.update(items).set({ status: "trashed" }).where(and(eq(items.id, entry.itemId!), eq(items.userId, userId)));
@@ -357,5 +560,5 @@ export async function undoActivity(userId: string, activityId: string) {
 
 /** Read-only log entries older than 30 days are pruned (worker housekeeping). Writes are kept. */
 export async function pruneActivity() {
-  await db.delete(activityLog).where(sql`${activityLog.action} IN ('search', 'get_page', 'list_pages') AND ${activityLog.createdAt} < NOW(3) - INTERVAL 30 DAY`);
+  await db.delete(activityLog).where(sql`${activityLog.action} IN ('search', 'get_page', 'list_pages', 'get_context') AND ${activityLog.createdAt} < NOW(3) - INTERVAL 30 DAY`);
 }

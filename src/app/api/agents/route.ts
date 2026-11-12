@@ -1,6 +1,6 @@
 import { asc, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { pages } from "@/db/schema";
+import { pages, userSettings } from "@/db/schema";
 import { handle } from "@/server/api";
 import { listAgents } from "@/server/agents";
 import { MCP_RESOURCE } from "@/server/oauth";
@@ -9,6 +9,8 @@ import { MCP_RESOURCE } from "@/server/oauth";
 export function GET(request: Request) {
   return handle(request, async ({ userId }) => ({
     mcpUrl: MCP_RESOURCE,
+    contextProfile:
+      (await db.select({ p: userSettings.contextProfile }).from(userSettings).where(eq(userSettings.userId, userId)))[0]?.p ?? "",
     agents: await listAgents(userId),
     pages: await db
       .select({ id: pages.id, name: pages.name, hiddenFromAgents: pages.hiddenFromAgents })

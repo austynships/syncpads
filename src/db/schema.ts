@@ -167,7 +167,9 @@ export const agents = mysqlTable(
     client: mysqlEnum("client", ["claude", "chatgpt", "cursor", "other"])
       .notNull()
       .default("other"),
-    permission: mysqlEnum("permission", ["read", "read_add"]).notNull().default("read"),
+    // read: search and read. read_add: also suggest links. read_add_context: also save
+    // conversation context (decisions, summaries) as notes.
+    permission: mysqlEnum("permission", ["read", "read_add", "read_add_context"]).notNull().default("read"),
     // When on, add_link skips the Agent Inbox (PRD "What happens when an agent adds a link").
     autoApprove: boolean("auto_approve").notNull().default(false),
     lastUsedAt: datetime("last_used_at", { mode: "date", fsp: 3 }),
@@ -435,6 +437,8 @@ export const userSettings = mysqlTable("user_settings", {
   // Smart features (summaries, tags, search by meaning). Off until the user
   // turns them on: page text is only sent to AI providers when this is true.
   aiEnabled: boolean("ai_enabled").notNull().default(false),
+  // "How I work": the user's standing context, which agents read first (get_context).
+  contextProfile: text("context_profile"),
   updatedAt: updatedAt(),
 });
 

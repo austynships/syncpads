@@ -35,7 +35,7 @@ const problems = [
   },
   {
     title: "Each AI starts from scratch",
-    body: "Switch from Claude to ChatGPT to Cursor and the context you built up in one doesn't come with you.",
+    body: "Switch from Claude to ChatGPT to Cursor and the decisions you made in one don't come with you.",
   },
 ];
 
@@ -50,7 +50,7 @@ const steps = [
   },
   {
     title: "Your AI works from your context",
-    body: "Ask about a project, a client or a tool, and it finds the links and notes you saved. When it finds something useful, it suggests it for your page.",
+    body: "Ask about a project, a client or a tool, and it reads your notes and finds your links. Say “save this to SyncPads” and the decisions and links from that chat are kept for every AI you use.",
   },
 ];
 
@@ -79,7 +79,7 @@ const controls = [
   {
     icon: IconInbox,
     title: "You approve every addition",
-    body: "Links your AI suggests wait in your Agent Inbox, with its reason, until you approve or dismiss them.",
+    body: "Links and conversation notes your AI saves wait in your Agent Inbox, with its reason, until you approve or dismiss them. Anything that looks like a password or key is removed first.",
   },
   {
     icon: IconEyeOff,
@@ -182,7 +182,7 @@ export default async function Home() {
               </h1>
               <p className="mt-5 max-w-xl text-lg leading-relaxed text-slate-600">
                 SyncPads is your start page: the tools, docs and notes you rely on, organized your way. Connect your AI and it
-                uses them too, so you stop re-explaining your work in every chat.
+                uses them too, and keeps what you decide, so you stop re-explaining your work in every chat.
               </p>
               <div className="mt-8 flex flex-wrap gap-3">
                 <Link href={primary.href} className="btn-primary px-5 py-3 text-base">
