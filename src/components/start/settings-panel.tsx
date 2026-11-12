@@ -4,6 +4,7 @@ import { useState } from "react";
 import type { Wallpaper } from "@/db/schema";
 import type { PageDTO, PageLayout, SettingsDTO, Theme } from "@/lib/start-page-types";
 import { PRESET_COLORS, PRESET_WALLPAPERS } from "@/lib/wallpapers";
+import { ImportBookmarks } from "./import-bookmarks";
 
 type Props = {
   settings: SettingsDTO;
@@ -15,6 +16,7 @@ type Props = {
   onPageLayout: (layout: PageLayout) => void;
   onRenamePage: (name: string) => void;
   onDeletePage: () => void;
+  onImported: (result: { pageIds: string[]; links: number; pages: number }) => void;
 };
 
 /** Appearance (SP-5) and current-page settings, in a side panel. */
@@ -89,6 +91,8 @@ export function SettingsPanel(p: Props) {
           />
           <button type="submit" className="btn-primary shrink-0">Use</button>
         </form>
+
+        <ImportBookmarks onImported={p.onImported} />
 
         <h3 className="label">This page</h3>
         <form

@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>SyncPads</title>
+    <link rel="stylesheet" href="popup.css" />
+    <script src="config.js"></script>
+    <script src="popup.js" defer></script>
+  </head>
+  <body>
+    <header>
+      <img src="icons/icon32.png" alt="" width="20" height="20" />
+      <strong>SyncPads</strong>
+      <a id="open-app" href="#" class="muted">Open</a>
+    </header>
+
+    <p id="loading" class="muted">Loading…</p>
+
+    <section id="signed-out" hidden>
+      <p>Sign in to SyncPads to save pages and import bookmarks.</p>
+      <button id="sign-in" class="primary">Sign in</button>
+    </section>
+
+    <section id="main" hidden>
+      <form id="save-form">
+        <label>Title<input id="title" maxlength="512" /></label>
+        <p id="url" class="muted url"></p>
+        <div class="row">
+          <label>Page<select id="page"></select></label>
+          <label>Group<select id="group"></select></label>
+        </div>
+        <button id="save" class="primary" type="submit">Save this page</button>
+      </form>
+
+      <hr />
+
+      <button id="save-tabs" type="button">Save all tabs in this window</button>
+      <p class="muted small">Adds them as a new group on the page chosen above.</p>
+
+      <hr />
+
+      <button id="import-start" type="button">Import Chrome bookmarks…</button>
+      <div id="import-confirm" hidden>
+        <p id="import-summary"></p>
+        <div class="row">
+          <button id="import-go" class="primary" type="button">Import</button>
+          <button id="import-cancel" type="button">Cancel</button>
+        </div>
+      </div>
+    </section>
+
+    <p id="message" role="status" hidden></p>
+  </body>
+</html>

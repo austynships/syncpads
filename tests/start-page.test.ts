@@ -3,6 +3,7 @@
  * Focus: users can only touch their own data, revisions bump on every write,
  * and ordering/moving works.
  */
+import { sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 const url = process.env.TEST_DATABASE_URL;
@@ -122,5 +123,61 @@ describe.skipIf(!url)("start page data", () => {
     await sp.updateSettings(bob, { theme: "dark", wallpaper: { type: "preset", value: "ocean" } });
     expect((await sp.getState(bob)).settings).toEqual({ theme: "dark", wallpaper: { type: "preset", value: "ocean" } });
   });
+
+  it("saves a group of tabs in one write, skipping non-web addresses (SP-8)", async () => {
+    const pageId = (await sp.getState(bob)).pages[0].id;
+    const start = await sp.getRevision(bob);
+    const result = await sp.createGroup(bob, {
+      pageId,
+      name: "Tabs",
+      links: [
+        { url: "https://one.example.com/", title: "One" },
+        { url: "chrome://settings", title: "Settings" },
+        { url: "https://two.example.com/", title: null },
+      ],
+    });
+    expect(result).toMatchObject({ added: 2, skipped: 1, revision: start + 1 });
+    const group = (await sp.getState(bob)).pages[0].groups.find((g) => g.id === result.id)!;
+    expect(group.items.map((i) => [i.url, i.title, i.position])).toEqual([
+      ["https://one.example.com/", "One", 0],
+      ["https://two.example.com/", null, 1],
+    ]);
+    // Other users can't add a group to this page.
+    await expect(sp.createGroup(alice, { pageId, name: "Nope", links: [] })).rejects.toThrow(/not found/);
+  });
+
+  it("imports bookmarks as new pages after the existing ones, in one write (SP-9)", async () => {
+    const before = await sp.getState(bob);
+    const folders = Array.from({ length: 20 }, (_, f) => ({
+      title: `Folder ${f}`,
+      children: Array.from({ length: 100 }, (_, i) => ({ title: `Link ${i}`, url: `https://s${f}-${i}.example.com/` })),
+    }));
+    const started = Date.now();
+    const result = await sp.importBookmarks(bob, [
+      { title: "Bookmarks bar", children: [{ title: "Top", url: "https://top.example.com" }, ...folders] },
+      { title: "Loose", url: "https://loose.example.com" },
+    ]);
+    expect(Date.now() - started).toBeLessThan(120_000); // SP-9: 2,000 links in under 2 minutes
+    expect(result).toMatchObject({ pages: 2, groups: 22, links: 2002, skipped: 0, revision: before.revision + 1 });
+
+    const after = await sp.getState(bob);
+    expect(after.pages.map((p) => p.name)).toEqual([...before.pages.map((p) => p.name), "Bookmarks bar", "Imported"]);
+    const bar = after.pages.find((p) => p.id === result.pageIds[0])!;
+    expect(bar.groups.map((g) => g.name).slice(0, 3)).toEqual(["Links", "Folder 0", "Folder 1"]);
+    expect(bar.groups[1].items).toHaveLength(100);
+    expect(bar.groups[1].items[99].title).toBe("Link 99");
+
+    const [row] = await dbMod.db
+      .select({ source: schema.items.source })
+      .from(schema.items)
+      .where(eqItem(bar.groups[0].items[0].id));
+    expect(row.source).toBe("import");
+
+    await expect(sp.importBookmarks(bob, [{ title: "Empty", children: [] }])).rejects.toThrow(/No links/);
+  });
 });
+
+function eqItem(id: string) {
+  return sql`id = ${id}`;
+}
 

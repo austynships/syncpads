@@ -43,6 +43,16 @@ API routes (all require sign-in, writes must come from the same origin): `GET /a
 
 Free plan limits are not enforced yet (Phase 6).
 
+## What's in Phase 3 (saving and import)
+
+| Feature | Notes |
+| --- | --- |
+| Chrome extension (SP-2, SP-8) | `extension/`: new tab opens SyncPads; popup saves the current page to a chosen page and group, or all tabs as a new group; imports Chrome bookmarks. See `extension/README.md` to install. |
+| Import a bookmark file (SP-9) | ⚙ Settings → **Import bookmarks**: an HTML export from Chrome, Edge, Firefox, Safari or start.me. Parsed in the browser (`src/lib/bookmarks.ts`), previewed, then sent to `POST /api/import`. |
+| Folder mapping | Top-level folder → page; links directly inside → "Links" group; each subfolder → group, deeper ones named by path ("Work / Clients"); loose top-level links → "Imported" page. Non-web links (bookmarklets, `chrome://`) are skipped. Limits: 10,000 links, 2,000 groups, 100 pages per import. |
+
+Imports add new pages after your existing ones in a single transaction, so a failed import leaves nothing half-done. Imported links have `source = 'import'`. The API accepts writes from browser extensions as well as the site itself (`src/server/api.ts`). start.me's RSS export (OPML) isn't imported yet; that comes with the RSS widget (SP-12).
+
 ## Run locally
 
 Requirements: Node.js 22 or newer, and Docker Desktop (for MariaDB and Redis).

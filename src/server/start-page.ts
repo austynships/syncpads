@@ -17,6 +17,7 @@ import type {
   Theme,
 } from "@/lib/start-page-types";
 import { normalizeUrl } from "@/lib/url";
+import { planImport, type BookmarkNode, type ImportLink } from "@/lib/bookmarks";
 
 type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
 
@@ -219,7 +220,14 @@ export function reorderPages(userId: string, ids: string[]) {
 
 // ---------- groups ----------
 
-export function createGroup(userId: string, input: { pageId: string; name: string; layout?: GroupLayout }) {
+/**
+ * Creates a group at the end of a page. `links` optionally fills it in the
+ * same write (the extension's "save all tabs"); invalid addresses are skipped.
+ */
+export function createGroup(
+  userId: string,
+  input: { pageId: string; name: string; layout?: GroupLayout; links?: { url: string; title?: string | null }[] },
+) {
   return write(userId, async (tx) => {
     await assertPage(tx, userId, input.pageId);
     const [{ value }] = await tx
@@ -235,7 +243,74 @@ export function createGroup(userId: string, input: { pageId: string; name: strin
       layout: input.layout ?? "list",
       position: (value ?? -1) + 1,
     });
-    return { id };
+
+    const links: ImportLink[] = [];
+    for (const link of input.links ?? []) {
+      const url = normalizeUrl(link.url);
+      if (url) links.push({ url, title: link.title?.trim().slice(0, 512) || null });
+    }
+    await insertLinks(tx, userId, id, links, "user");
+    return { id, added: links.length, skipped: (input.links?.length ?? 0) - links.length };
+  });
+}
+
+async function insertLinks(tx: Tx, userId: string, groupId: string, links: ImportLink[], source: "user" | "import") {
+  // Chunked so one statement never gets too large.
+  for (let start = 0; start < links.length; start += 500) {
+    await tx.insert(items).values(
+      links.slice(start, start + 500).map((link, i) => ({
+        id: crypto.randomUUID(),
+        userId,
+        groupId,
+        type: "link" as const,
+        url: link.url,
+        title: link.title,
+        position: start + i,
+        source,
+        status: "active" as const,
+      })),
+    );
+  }
+}
+
+// ---------- import (SP-9) ----------
+
+/**
+ * Imports a bookmark tree (from an HTML bookmark file or the Chrome extension)
+ * as new pages after the existing ones. Existing pages are never changed.
+ * Everything is written in one transaction, so a failed import leaves nothing behind.
+ */
+export async function importBookmarks(userId: string, tree: BookmarkNode[]) {
+  let plan: ReturnType<typeof planImport>;
+  try {
+    plan = planImport(tree);
+  } catch (err) {
+    throw new InvalidInputError((err as Error).message);
+  }
+  if (plan.linkCount === 0) throw new InvalidInputError("No links found to import.");
+
+  return write(userId, async (tx) => {
+    const [{ value }] = await tx.select({ value: max(pages.position) }).from(pages).where(eq(pages.userId, userId));
+    let pagePosition = (value ?? -1) + 1;
+    const pageIds: string[] = [];
+
+    for (const page of plan.pages) {
+      const pageId = crypto.randomUUID();
+      pageIds.push(pageId);
+      await tx.insert(pages).values({ id: pageId, userId, name: page.name, position: pagePosition++ });
+      for (const [position, group] of page.groups.entries()) {
+        const groupId = crypto.randomUUID();
+        await tx.insert(groups).values({ id: groupId, userId, pageId, name: group.name, position, layout: "list" });
+        await insertLinks(tx, userId, groupId, group.links, "import");
+      }
+    }
+    return {
+      pageIds,
+      pages: plan.pages.length,
+      groups: plan.groupCount,
+      links: plan.linkCount,
+      skipped: plan.skipped,
+    };
   });
 }
 

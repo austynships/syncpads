@@ -215,6 +215,14 @@ export function StartPage({ userId, email }: { userId: string; email: string }) 
             onPageLayout={(layout) => setPageLayout(page.id, layout)}
             onRenamePage={(name) => renamePage(page.id, name)}
             onDeletePage={() => deletePage(page.id)}
+            onImported={async (result) => {
+              await refresh();
+              if (result.pageIds[0]) selectPage(result.pageIds[0]);
+              setSettingsOpen(false);
+              toast(
+                `Imported ${result.links.toLocaleString()} links into ${result.pages} new ${result.pages === 1 ? "page" : "pages"}.`,
+              );
+            }}
           />
         )}
 
