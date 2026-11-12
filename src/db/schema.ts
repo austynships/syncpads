@@ -1,0 +1,331 @@
+/**
+ * SyncPads database schema (MariaDB 11.8).
+ *
+ * Rules for every table, now and in later phases:
+ *  - Every row that belongs to a user has a `user_id` column with a foreign key
+ *    to `users.id` and ON DELETE CASCADE. Deleting a user then removes all of
+ *    their data in one statement (SP-1 account deletion). A test enforces this.
+ *  - IDs are 36-character strings, matching Better Auth's user IDs.
+ *  - Columns are snake_case in the database, camelCase in TypeScript.
+ */
+import { sql } from "drizzle-orm";
+import {
+  boolean,
+  datetime,
+  index,
+  int,
+  mediumtext,
+  mysqlEnum,
+  mysqlTable,
+  primaryKey,
+  text,
+  varchar,
+} from "drizzle-orm/mysql-core";
+import { EMBEDDING_DIMENSIONS, json, vector } from "./types";
+
+// ---------- Shared column helpers ----------
+
+const id = () =>
+  varchar("id", { length: 36 })
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID());
+
+const createdAt = () =>
+  datetime("created_at", { mode: "date", fsp: 3 })
+    .notNull()
+    .default(sql`CURRENT_TIMESTAMP(3)`);
+
+const updatedAt = () =>
+  datetime("updated_at", { mode: "date", fsp: 3 })
+    .notNull()
+    .default(sql`CURRENT_TIMESTAMP(3)`)
+    .$onUpdate(() => new Date());
+
+/** `user_id` column that cascades when the user is deleted. */
+const userId = () =>
+  varchar("user_id", { length: 36 })
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" });
+
+// ---------- Auth tables (managed by Better Auth) ----------
+
+export const users = mysqlTable("users", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  email: varchar("email", { length: 255 }).notNull().unique(),
+  name: varchar("name", { length: 255 }).notNull(),
+  emailVerified: boolean("email_verified").notNull().default(false),
+  // Better Auth expects this column; it stays null because there is no social sign-in.
+  image: text("image"),
+  // Server-only fields (Better Auth additionalFields with input: false).
+  plan: mysqlEnum("plan", ["free", "pro"]).notNull().default("free"),
+  stripeCustomerId: varchar("stripe_customer_id", { length: 255 }).unique(),
+  createdAt: createdAt(),
+  updatedAt: updatedAt(),
+});
+
+export const sessions = mysqlTable(
+  "sessions",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    userId: userId(),
+    token: varchar("token", { length: 255 }).notNull().unique(),
+    expiresAt: datetime("expires_at", { mode: "date", fsp: 3 }).notNull(),
+    ipAddress: varchar("ip_address", { length: 64 }),
+    userAgent: text("user_agent"),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [index("sessions_user_id_idx").on(t.userId)],
+);
+
+/** Password hashes live here (provider_id = "credential"), not on users. */
+export const accounts = mysqlTable(
+  "accounts",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    userId: userId(),
+    accountId: varchar("account_id", { length: 255 }).notNull(),
+    providerId: varchar("provider_id", { length: 64 }).notNull(),
+    accessToken: text("access_token"),
+    refreshToken: text("refresh_token"),
+    idToken: text("id_token"),
+    accessTokenExpiresAt: datetime("access_token_expires_at", { mode: "date", fsp: 3 }),
+    refreshTokenExpiresAt: datetime("refresh_token_expires_at", { mode: "date", fsp: 3 }),
+    scope: text("scope"),
+    password: text("password"),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [index("accounts_user_id_idx").on(t.userId)],
+);
+
+/**
+ * Short-lived email verification and password reset tokens.
+ * Keyed by identifier (email or token), not user_id; rows expire on their own.
+ */
+export const verifications = mysqlTable(
+  "verifications",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    identifier: varchar("identifier", { length: 255 }).notNull(),
+    value: text("value").notNull(),
+    expiresAt: datetime("expires_at", { mode: "date", fsp: 3 }).notNull(),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [index("verifications_identifier_idx").on(t.identifier)],
+);
+
+// ---------- SyncPads tables (PRD "Data model") ----------
+
+export const pages = mysqlTable(
+  "pages",
+  {
+    id: id(),
+    userId: userId(),
+    name: varchar("name", { length: 255 }).notNull(),
+    position: int("position").notNull().default(0),
+    // Page-level arrangement; allowed values are decided in Phase 2.
+    layout: varchar("layout", { length: 32 }).notNull().default("default"),
+    hiddenFromAgents: boolean("hidden_from_agents").notNull().default(false),
+    // Secret for the private .md / llms.txt URL (SP-19). Rotating = replacing it.
+    mdToken: varchar("md_token", { length: 64 }).unique(),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [index("pages_user_position_idx").on(t.userId, t.position)],
+);
+
+// Named `groups` in the database; Drizzle quotes it, since GROUPS is a reserved word in MySQL 8.
+export const groups = mysqlTable(
+  "groups",
+  {
+    id: id(),
+    userId: userId(),
+    pageId: varchar("page_id", { length: 36 })
+      .notNull()
+      .references(() => pages.id, { onDelete: "cascade" }),
+    name: varchar("name", { length: 255 }).notNull(),
+    position: int("position").notNull().default(0),
+    layout: mysqlEnum("layout", ["list", "tiles"]).notNull().default("list"),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    index("groups_user_id_idx").on(t.userId),
+    index("groups_page_position_idx").on(t.pageId, t.position),
+  ],
+);
+
+export const agents = mysqlTable(
+  "agents",
+  {
+    id: id(),
+    userId: userId(),
+    name: varchar("name", { length: 255 }).notNull(),
+    client: mysqlEnum("client", ["claude", "chatgpt", "cursor", "other"])
+      .notNull()
+      .default("other"),
+    permission: mysqlEnum("permission", ["read", "read_add"]).notNull().default("read"),
+    // When on, add_link skips the Agent Inbox (PRD "What happens when an agent adds a link").
+    autoApprove: boolean("auto_approve").notNull().default(false),
+    lastUsedAt: datetime("last_used_at", { mode: "date", fsp: 3 }),
+    // Revoked agents keep their row so the activity log stays intact.
+    revokedAt: datetime("revoked_at", { mode: "date", fsp: 3 }),
+    createdAt: createdAt(),
+  },
+  (t) => [index("agents_user_id_idx").on(t.userId)],
+);
+
+/** Links and notes share one table. */
+export const items = mysqlTable(
+  "items",
+  {
+    id: id(),
+    userId: userId(),
+    groupId: varchar("group_id", { length: 36 })
+      .notNull()
+      .references(() => groups.id, { onDelete: "cascade" }),
+    type: mysqlEnum("type", ["link", "note"]).notNull(),
+    url: varchar("url", { length: 2048 }),
+    title: varchar("title", { length: 512 }),
+    noteBody: mediumtext("note_body"),
+    position: int("position").notNull().default(0),
+    source: mysqlEnum("source", ["user", "agent", "import"]).notNull().default("user"),
+    status: mysqlEnum("status", ["active", "inbox", "trashed"]).notNull().default("active"),
+    createdByAgentId: varchar("created_by_agent_id", { length: 36 }).references(
+      () => agents.id,
+      { onDelete: "set null" },
+    ),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    index("items_user_status_idx").on(t.userId, t.status),
+    index("items_group_position_idx").on(t.groupId, t.position),
+  ],
+);
+
+/** Filled by the enrichment worker (Phase 4). */
+export const itemEnrichment = mysqlTable(
+  "item_enrichment",
+  {
+    itemId: varchar("item_id", { length: 36 })
+      .primaryKey()
+      .references(() => items.id, { onDelete: "cascade" }),
+    userId: userId(),
+    status: mysqlEnum("status", ["pending", "processing", "done", "failed"])
+      .notNull()
+      .default("pending"),
+    fetchedAt: datetime("fetched_at", { mode: "date", fsp: 3 }),
+    // Untrusted page text: always labeled as untrusted when shown to agents.
+    textSnapshot: mediumtext("text_snapshot"),
+    summary: text("summary"),
+    tags: json<string[]>("tags"),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [index("item_enrichment_user_id_idx").on(t.userId)],
+);
+
+/**
+ * One embedding per item, stored in a MariaDB VECTOR column.
+ * Insert with VEC_FromText() and search with VEC_DISTANCE_COSINE(), always
+ * filtered by user_id — helpers live in src/db/vector.ts. No vector index yet.
+ */
+export const itemEmbeddings = mysqlTable(
+  "item_embeddings",
+  {
+    itemId: varchar("item_id", { length: 36 })
+      .primaryKey()
+      .references(() => items.id, { onDelete: "cascade" }),
+    userId: userId(),
+    model: varchar("model", { length: 64 }).notNull(),
+    embedding: vector("embedding", { dimensions: EMBEDDING_DIMENSIONS }).notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [index("item_embeddings_user_id_idx").on(t.userId)],
+);
+
+export type RssWidgetConfig = { feedUrl: string };
+export type NotesWidgetConfig = { body?: string };
+
+export const widgets = mysqlTable(
+  "widgets",
+  {
+    id: id(),
+    userId: userId(),
+    pageId: varchar("page_id", { length: 36 })
+      .notNull()
+      .references(() => pages.id, { onDelete: "cascade" }),
+    type: mysqlEnum("type", ["notes", "rss"]).notNull(),
+    config: json<RssWidgetConfig | NotesWidgetConfig>("config"),
+    position: int("position").notNull().default(0),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    index("widgets_user_id_idx").on(t.userId),
+    index("widgets_page_position_idx").on(t.pageId, t.position),
+  ],
+);
+
+/** Last 50 items per RSS feed. */
+export const feedItems = mysqlTable(
+  "feed_items",
+  {
+    id: id(),
+    userId: userId(),
+    widgetId: varchar("widget_id", { length: 36 })
+      .notNull()
+      .references(() => widgets.id, { onDelete: "cascade" }),
+    title: varchar("title", { length: 512 }).notNull(),
+    url: varchar("url", { length: 2048 }).notNull(),
+    publishedAt: datetime("published_at", { mode: "date", fsp: 3 }),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    index("feed_items_user_id_idx").on(t.userId),
+    index("feed_items_widget_published_idx").on(t.widgetId, t.publishedAt),
+  ],
+);
+
+/** Pages an agent may see. No rows for an agent = all non-hidden pages. */
+export const agentScopes = mysqlTable(
+  "agent_scopes",
+  {
+    agentId: varchar("agent_id", { length: 36 })
+      .notNull()
+      .references(() => agents.id, { onDelete: "cascade" }),
+    pageId: varchar("page_id", { length: 36 })
+      .notNull()
+      .references(() => pages.id, { onDelete: "cascade" }),
+    userId: userId(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.agentId, t.pageId] }),
+    index("agent_scopes_user_id_idx").on(t.userId),
+  ],
+);
+
+/** Every agent action; `before` and `after` make undo possible (SP-17). */
+export const activityLog = mysqlTable(
+  "activity_log",
+  {
+    id: id(),
+    userId: userId(),
+    agentId: varchar("agent_id", { length: 36 }).references(() => agents.id, {
+      onDelete: "set null",
+    }),
+    action: varchar("action", { length: 64 }).notNull(),
+    itemId: varchar("item_id", { length: 36 }).references(() => items.id, {
+      onDelete: "set null",
+    }),
+    before: json<unknown>("before"),
+    after: json<unknown>("after"),
+    reason: text("reason"),
+    createdAt: createdAt(),
+    undoneAt: datetime("undone_at", { mode: "date", fsp: 3 }),
+  },
+  (t) => [index("activity_log_user_created_idx").on(t.userId, t.createdAt)],
+);
