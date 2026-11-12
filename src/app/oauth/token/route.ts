@@ -3,7 +3,7 @@ import { json, oauthEndpoint, preflight, readForm } from "@/server/oauth-http";
 
 // Token endpoint: authorization_code (with PKCE) and refresh_token grants.
 export function POST(request: Request) {
-  return oauthEndpoint(async () => {
+  return oauthEndpoint(request, async () => {
     const form = await readForm(request);
     const client = await authenticateClient(form, request.headers.get("authorization"));
     switch (form.get("grant_type")) {

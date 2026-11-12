@@ -1,5 +1,6 @@
 import { auth } from "@/lib/auth";
 import { approveAuthorization, ORIGIN, validateAuthorizeRequest, withParams } from "@/server/oauth";
+import { logAgentRequest } from "@/server/request-log";
 
 // The consent form posts here. Only our own consent page may post (Origin
 // check), and only for a signed-in user.
@@ -23,6 +24,7 @@ export async function POST(request: Request) {
     return new Response(check.show ?? "Invalid request.", { status: 400 });
   }
 
+  logAgentRequest("consent", request, 303, { client: check.request.client.name, decision, permission });
   if (decision !== "allow") {
     const url = withParams(check.request.redirectUri, {
       error: "access_denied",

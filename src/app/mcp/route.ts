@@ -18,6 +18,7 @@ import {
 } from "@/server/agents";
 import { ORIGIN, verifyAccessToken, type AgentContext } from "@/server/oauth";
 import { CORS } from "@/server/oauth-http";
+import { logAgentRequest } from "@/server/request-log";
 
 const RESOURCE_METADATA = `${ORIGIN}/.well-known/oauth-protected-resource/mcp`;
 const MCP_CORS = {
@@ -127,11 +128,26 @@ function unauthorized(hadToken: boolean) {
   );
 }
 
+async function rpcMethod(request: Request) {
+  if (request.method !== "POST") return null;
+  try {
+    const body = (await request.clone().json()) as { method?: string; params?: { name?: string } } | { method?: string }[];
+    const first = Array.isArray(body) ? body[0] : body;
+    return [first?.method, (first as { params?: { name?: string } })?.params?.name].filter(Boolean).join(" ") || null;
+  } catch {
+    return null;
+  }
+}
+
 async function handle(request: Request): Promise<Response> {
   const header = request.headers.get("authorization") ?? "";
   const token = header.startsWith("Bearer ") ? header.slice(7).trim() : "";
   const ctx = token ? await verifyAccessToken(token) : null;
-  if (!ctx) return unauthorized(Boolean(token));
+  const rpc = await rpcMethod(request);
+  if (!ctx) {
+    logAgentRequest("mcp", request, 401, { rpc, hadToken: Boolean(token) });
+    return unauthorized(Boolean(token));
+  }
 
   const server = buildServer(ctx);
   const transport = new WebStandardStreamableHTTPServerTransport({ sessionIdGenerator: undefined, enableJsonResponse: true });
@@ -139,6 +155,7 @@ async function handle(request: Request): Promise<Response> {
   const response = await transport.handleRequest(request, {
     authInfo: { token, clientId: ctx.clientId, scopes: ["syncpads"], expiresAt: Math.floor(ctx.expiresAt.getTime() / 1000) },
   });
+  logAgentRequest("mcp", request, response.status, { rpc, agent: ctx.agentName });
   const headers = new Headers(response.headers);
   for (const [k, v] of Object.entries(MCP_CORS)) headers.set(k, v);
   return new Response(response.body, { status: response.status, headers });

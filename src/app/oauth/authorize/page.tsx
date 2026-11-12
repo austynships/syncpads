@@ -36,6 +36,7 @@ export default async function AuthorizePage({ searchParams }: { searchParams: Pr
   }
 
   const session = await getSession();
+  console.log(`[agents] consent screen for "${check.request.client.name}" (${session ? "signed in" : "sent to sign-in"})`);
   if (!session) redirect(`/login?next=${encodeURIComponent(`/oauth/authorize?${params.toString()}`)}`);
 
   const { client } = check.request;

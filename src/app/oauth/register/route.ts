@@ -5,7 +5,7 @@ import { json, oauthEndpoint, preflight } from "@/server/oauth-http";
 
 // RFC 7591 dynamic client registration: agents register themselves before asking the user to connect.
 export function POST(request: Request) {
-  return oauthEndpoint(async () => {
+  return oauthEndpoint(request, async () => {
     // At most 30 registrations per address per hour.
     const key = `oauth:register:${getClientIp(request.headers) ?? "unknown"}`;
     const count = await redis.incr(key);
@@ -14,7 +14,9 @@ export function POST(request: Request) {
 
     const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
     if (!body || typeof body !== "object") throw new OAuthError("invalid_client_metadata", "Body must be JSON.");
-    return json(await registerClient(body), 201);
+    const client = await registerClient(body);
+    console.log(`[agents] registered client "${client.client_name}" redirects=${(client.redirect_uris as string[]).map((u) => new URL(u).origin).join(",")}`);
+    return json(client, 201);
   });
 }
 export const OPTIONS = preflight;
