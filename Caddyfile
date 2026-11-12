@@ -1,0 +1,7 @@
+# Caddy gets and renews the HTTPS certificate for APP_DOMAIN automatically.
+# It also sets X-Forwarded-For to the real client IP (ignoring any value the
+# client sent), which the sign-in lockout relies on.
+{$APP_DOMAIN} {
+	encode zstd gzip
+	reverse_proxy app:3000
+}

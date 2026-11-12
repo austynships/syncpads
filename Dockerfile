@@ -1,4 +1,4 @@
-# Production image for SyncPads (deployed with Coolify).
+# Production image for SyncPads. Used by docker-compose.prod.yml on the server.
 # Build:  docker build -t syncpads .
 # Run:    docker run -p 3000:3000 --env-file .env syncpads
 

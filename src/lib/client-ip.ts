@@ -1,9 +1,9 @@
 /**
  * Client IP for the sign-in lockout.
  *
- * Behind Coolify's proxy (Traefik or Caddy) every request comes from the proxy,
- * so the real client IP is read from X-Forwarded-For. Both proxies, by default,
- * ignore an X-Forwarded-For sent by the client and set it themselves, so the
+ * Behind Caddy (docker-compose.prod.yml) every request comes from the proxy,
+ * so the real client IP is read from X-Forwarded-For. Caddy, by default,
+ * ignores an X-Forwarded-For sent by the client and sets it itself, so the
  * first entry is the real client. Only trust the header when TRUST_PROXY=true;
  * otherwise anyone could fake their IP.
  *

@@ -1,0 +1,27 @@
+# Deploys to the VPS on every push to main.
+# Off until you set it up: add the repo variable DEPLOY_ENABLED=true and the
+# secrets VPS_HOST and VPS_SSH_KEY (see README "Automatic deploys").
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: vars.DEPLOY_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy over SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: deploy
+          key: ${{ secrets.VPS_SSH_KEY }}
+          command_timeout: 20m
+          script: cd ~/syncpads && ./scripts/deploy.sh

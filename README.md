@@ -69,41 +69,43 @@ $env:TEST_DATABASE_URL="mysql://syncpads:syncpads@localhost:3306/syncpads_test";
 
 Rule for new tables: any table holding user data needs a `user_id` column with `ON DELETE CASCADE` to `users` (use the `userId()` helper). The account deletion test fails if one is missing.
 
-## Deploy with Coolify
+## Deploy (Ubuntu 24.04 + Docker, no Coolify)
 
-The Hostinger KVM 2 server should already run Ubuntu 24.04 with Coolify installed, SSH key login only.
+Everything runs with Docker Compose on one server: Caddy (HTTPS) ? app ? MariaDB 11.8 + Redis. See `docker-compose.prod.yml`. A full beginner walkthrough lives outside the repo; the short version:
 
-1. **Push this repo to GitHub.** In Coolify, connect the GitHub App so it can deploy on push.
-2. **Create the databases** in Coolify (Project → New Resource → Database):
-   - **MariaDB**, image `mariadb:11.8`. Note the internal connection URL. Use the `mysql://` scheme: `mysql://user:pass@<internal-host>:3306/syncpads`.
-   - **Redis**. Note its internal URL.
-3. **Create the app** (New Resource → your GitHub repo). Build pack: **Dockerfile**. Port: **3000**.
-4. **Environment variables** (Coolify → app → Environment Variables):
+1. Install Ubuntu 24.04, Docker and a firewall that allows only ports 22, 80 and 443.
+2. Point your domain's DNS `A` record at the server.
+3. Clone this repo to `~/syncpads` on the server. For a private repo, use a read-only GitHub deploy key.
+4. `cp .env.production.example .env` and fill it in (generate secrets with `openssl rand -hex 32`).
+5. `./scripts/deploy.sh`. This pulls, builds and starts everything. Migrations run when the app starts, and Caddy fetches the HTTPS certificate on its own.
+6. Logs: `docker compose -f docker-compose.prod.yml logs -f app`. Health check: `https://your-domain/api/health`.
 
-   | Variable | Value |
-   | --- | --- |
-   | `BETTER_AUTH_URL` | `https://your-domain.com` |
-   | `BETTER_AUTH_SECRET` | output of `openssl rand -base64 32` |
-   | `DATABASE_URL` | MariaDB internal URL from step 2 |
-   | `REDIS_URL` | Redis internal URL from step 2 |
-   | `RESEND_API_KEY` | from Resend |
-   | `EMAIL_FROM` | e.g. `SyncPads <no-reply@your-domain.com>` |
+### Automatic deploys (optional)
 
-   `TRUST_PROXY=true` and `RUN_MIGRATIONS_ON_START=true` are already set in the Dockerfile.
-5. **Domain:** set your domain on the app in Coolify. Coolify's proxy handles HTTPS certificates.
-6. **Deploy.** On startup the container applies any pending migrations, then serves on port 3000. Health check: `GET /api/health`.
-7. **Nightly backups (Phase 1 checklist):** in Coolify → MariaDB → Backups, schedule a daily backup (`0 3 * * *`) to an S3-compatible destination (Cloudflare R2 or Backblaze B2), kept for 30 days. Test a restore before launch.
+`.github/workflows/deploy.yml` SSHes into the server and runs `scripts/deploy.sh` on every push to `main`. To turn it on, go to GitHub ? repo ? Settings ? Secrets and variables ? Actions:
+- Secrets: `VPS_HOST` (server IP) and `VPS_SSH_KEY` (a private key whose public key is in the `deploy` user's `~/.ssh/authorized_keys`)
+- Variable: `DEPLOY_ENABLED` = `true`
+
+### Nightly backups
+
+`scripts/backup.sh` dumps MariaDB and uploads it to Cloudflare R2. Fill in the `R2_*` values in `.env`, then add a cron job (`crontab -e`):
+
+```
+0 3 * * * cd ~/syncpads && ./scripts/backup.sh >> ~/backup.log 2>&1
+```
+
+In R2, add a lifecycle rule to the bucket that deletes objects after 30 days. Test a restore before launch:
+`gunzip -c backup.sql.gz | docker compose -f docker-compose.prod.yml exec -T mariadb mariadb -uroot -p"$DB_ROOT_PASSWORD" syncpads`
 
 ### Why `TRUST_PROXY` matters
 
-Behind Coolify, every request reaches the app from the proxy. The lockout reads the real client IP from the first `X-Forwarded-For` entry. Coolify's Traefik and Caddy both ignore any `X-Forwarded-For` sent by clients and set their own, so that entry can be trusted. Don't set `TRUST_PROXY=true` if the app is exposed without a proxy in front of it. If you later put Cloudflare in front, revisit this.
+Every request reaches the app from Caddy. The lockout reads the real client IP from the first `X-Forwarded-For` entry. Caddy ignores any `X-Forwarded-For` sent by clients and sets its own, so that entry can be trusted. Don't set `TRUST_PROXY=true` if the app is exposed without a proxy in front of it. If you later put Cloudflare in front, revisit this.
 
 ## Accounts and keys you need
 
 - **Resend** (resend.com): create an API key and verify your sending domain (DNS records). Without a verified domain, Resend only delivers to your own address.
-- **Domain**: needed for `BETTER_AUTH_URL`, HTTPS and the Resend sender. Whether syncpads.com is available is still an open question in the PRD.
-- **GitHub**: repository for Coolify to deploy from.
-- **S3-compatible storage** (Cloudflare R2 or Backblaze B2): for nightly backups.
+- **Domain**: needed for HTTPS and the Resend sender.
+- **Cloudflare R2** (or Backblaze B2): for nightly backups.
 
 ## Privacy policy note
 
