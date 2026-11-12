@@ -3,6 +3,7 @@
 import { useState } from "react";
 import type { GroupLayout, ItemDTO } from "@/lib/start-page-types";
 import { displayHost } from "@/lib/url";
+import { IconPencil, IconX } from "@/components/icons";
 import { Favicon } from "./favicon";
 
 type Props = {
@@ -20,7 +21,7 @@ export function LinkItem({ item, layout, onSave, onDelete }: Props) {
   if (editing) {
     return (
       <form
-        className="space-y-2 rounded-lg bg-zinc-100 p-2 dark:bg-zinc-800"
+        className="space-y-2 rounded-xl border border-slate-900/[0.07] bg-slate-50 p-2.5 dark:border-white/10 dark:bg-slate-950/50"
         onSubmit={(e) => {
           e.preventDefault();
           const form = new FormData(e.currentTarget);
@@ -33,7 +34,7 @@ export function LinkItem({ item, layout, onSave, onDelete }: Props) {
         <div className="flex gap-2">
           <button type="submit" className="btn-primary">Save</button>
           <button type="button" className="btn-ghost" onClick={() => setEditing(false)}>Cancel</button>
-          <button type="button" className="btn-ghost ml-auto text-red-600" onClick={onDelete}>Delete</button>
+          <button type="button" className="btn-ghost ml-auto text-red-600 hover:bg-red-50 hover:text-red-700 dark:text-red-400 dark:hover:bg-red-500/10" onClick={onDelete}>Delete</button>
         </div>
       </form>
     );
@@ -41,8 +42,8 @@ export function LinkItem({ item, layout, onSave, onDelete }: Props) {
 
   const actions = (
     <span className="absolute right-1 top-1 hidden gap-0.5 group-hover/item:flex group-focus-within/item:flex [@media(hover:none)]:flex">
-      <IconButton label="Edit link" onClick={() => setEditing(true)}>✎</IconButton>
-      <IconButton label="Delete link" onClick={onDelete}>✕</IconButton>
+      <IconButton label="Edit link" onClick={() => setEditing(true)}><IconPencil size={13} /></IconButton>
+      <IconButton label="Delete link" onClick={onDelete}><IconX size={13} /></IconButton>
     </span>
   );
 
@@ -52,11 +53,11 @@ export function LinkItem({ item, layout, onSave, onDelete }: Props) {
         <a
           href={url}
           draggable={false}
-          className="flex h-24 flex-col items-center justify-center gap-2 rounded-lg p-2 text-center hover:bg-zinc-100 dark:hover:bg-zinc-800"
+          className="flex h-24 flex-col items-center justify-center gap-2 rounded-xl p-2 text-center transition hover:bg-slate-900/[0.04] dark:hover:bg-white/5"
           title={url}
         >
           <Favicon url={url} size={32} />
-          <span className="line-clamp-2 w-full break-words text-xs">{label}</span>
+          <span className="line-clamp-2 w-full break-words text-xs font-medium text-slate-700 dark:text-slate-300">{label}</span>
         </a>
         {actions}
       </div>
@@ -68,11 +69,11 @@ export function LinkItem({ item, layout, onSave, onDelete }: Props) {
       <a
         href={url}
         draggable={false}
-        className="flex items-center gap-2 rounded-md px-2 py-1.5 pr-14 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+        className="flex items-center gap-2.5 rounded-lg px-2 py-1.5 pr-14 transition hover:bg-slate-900/[0.04] dark:hover:bg-white/5"
         title={url}
       >
         <Favicon url={url} />
-        <span className="truncate text-sm">{label}</span>
+        <span className="truncate text-sm text-slate-800 dark:text-slate-200">{label}</span>
       </a>
       {actions}
     </div>
@@ -90,7 +91,7 @@ export function IconButton({ label, onClick, children }: { label: string; onClic
         e.stopPropagation();
         onClick();
       }}
-      className="flex h-6 w-6 items-center justify-center rounded bg-white/90 text-xs text-zinc-600 shadow-sm hover:text-zinc-900 dark:bg-zinc-700 dark:text-zinc-200"
+      className="flex h-6 w-6 items-center justify-center rounded-md border border-slate-900/[0.07] bg-white text-slate-500 shadow-sm transition hover:text-slate-900 dark:border-white/10 dark:bg-slate-800 dark:text-slate-300 dark:hover:text-white"
     >
       {children}
     </button>

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { parseBookmarksHtml, planImport, type BookmarkNode, type ImportPlan } from "@/lib/bookmarks";
+import { IconUpload } from "@/components/icons";
 import { api } from "./api";
 
 type ImportResult = { revision: number; pageIds: string[]; pages: number; groups: number; links: number; skipped: number };
@@ -56,13 +57,14 @@ export function ImportBookmarks({ onImported }: { onImported: (result: ImportRes
   }
 
   return (
-    <div className="mb-6">
+    <div>
       <h3 className="label">Import bookmarks</h3>
-      <p className="mb-2 text-xs text-zinc-500">
+      <p className="mb-3 text-sm leading-relaxed text-slate-600 dark:text-slate-400">
         Upload an HTML bookmark export from Chrome, Edge, Firefox, Safari or start.me. Each top-level folder
         becomes a page and each subfolder a group. Your current pages aren&apos;t changed.
       </p>
-      <label className="btn-ghost inline-block cursor-pointer border border-zinc-300 dark:border-zinc-600">
+      <label className="btn-secondary cursor-pointer">
+        <IconUpload size={15} />
         Choose file…
         <input
           type="file"
@@ -74,19 +76,19 @@ export function ImportBookmarks({ onImported }: { onImported: (result: ImportRes
           }}
         />
       </label>
-      {fileName && <span className="ml-2 text-xs text-zinc-500">{fileName}</span>}
+      {fileName && <span className="ml-2 text-xs text-slate-500">{fileName}</span>}
 
       {plan && (
-        <div className="mt-3 rounded-lg border border-zinc-200 p-3 text-sm dark:border-zinc-700">
+        <div className="mt-3 rounded-xl border border-slate-900/10 bg-slate-50 p-4 text-sm dark:border-white/10 dark:bg-slate-950/40">
           <p>
             Ready to import <strong>{plan.linkCount.toLocaleString()}</strong> links into{" "}
             <strong>{plan.pages.length}</strong> {plan.pages.length === 1 ? "page" : "pages"} and{" "}
             <strong>{plan.groupCount}</strong> {plan.groupCount === 1 ? "group" : "groups"}.
           </p>
           {plan.skipped > 0 && (
-            <p className="mt-1 text-xs text-zinc-500">{plan.skipped} entries aren&apos;t web links and will be skipped.</p>
+            <p className="mt-1 text-xs text-slate-500">{plan.skipped} entries aren&apos;t web links and will be skipped.</p>
           )}
-          <p className="mt-1 truncate text-xs text-zinc-500">
+          <p className="mt-1 truncate text-xs text-slate-500">
             New pages: {plan.pages.map((p) => p.name).join(", ")}
           </p>
           <button type="button" className="btn-primary mt-3 w-full" disabled={busy} onClick={runImport}>

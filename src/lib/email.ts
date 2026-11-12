@@ -35,12 +35,13 @@ export async function sendEmail(email: Email) {
 export function linkEmail(opts: { heading: string; body: string; buttonText: string; url: string }) {
   const text = `${opts.heading}\n\n${opts.body}\n\n${opts.url}\n\nIf you didn't request this, you can ignore this email.`;
   const html = `
-    <div style="font-family: system-ui, sans-serif; max-width: 480px; margin: 0 auto;">
-      <h2>${opts.heading}</h2>
+    <div style="font-family: 'Plus Jakarta Sans', Inter, system-ui, sans-serif; max-width: 480px; margin: 0 auto; color: #0b1f44;">
+      <p style="margin:0 0 24px;"><img src="${process.env.BETTER_AUTH_URL ?? "https://syncpad.tech"}/brand/syncpads-logo.png" alt="SyncPads" height="30" style="height:30px;width:auto;border:0;" /></p>
+      <h2 style="margin:0 0 12px;">${opts.heading}</h2>
       <p>${opts.body}</p>
-      <p><a href="${opts.url}" style="display:inline-block;padding:10px 16px;background:#111;color:#fff;border-radius:6px;text-decoration:none;">${opts.buttonText}</a></p>
-      <p style="color:#666;font-size:13px;">Or paste this link into your browser:<br>${opts.url}</p>
-      <p style="color:#666;font-size:13px;">If you didn't request this, you can ignore this email.</p>
+      <p><a href="${opts.url}" style="display:inline-block;padding:10px 16px;background:#d93a0e;color:#fff;border-radius:8px;font-weight:600;text-decoration:none;">${opts.buttonText}</a></p>
+      <p style="color:#64748b;font-size:13px;">Or paste this link into your browser:<br>${opts.url}</p>
+      <p style="color:#64748b;font-size:13px;">If you didn't request this, you can ignore this email.</p>
     </div>`;
   return { text, html };
 }

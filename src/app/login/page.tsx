@@ -3,12 +3,12 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { Alert, AuthCard, Button, Field } from "@/components/ui";
+import { Alert, AuthCard, Button, Field, linkClass } from "@/components/ui";
 import { authClient } from "@/lib/auth-client";
 
 export default function LoginPage() {
   const router = useRouter();
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<{ kind: "error" | "warning"; text: string } | null>(null);
   const [loading, setLoading] = useState(false);
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -19,6 +19,7 @@ export default function LoginPage() {
     const { error } = await authClient.signIn.email({
       email: String(form.get("email")),
       password: String(form.get("password")),
+      callbackURL: "/verify-email", // for the verification email re-sent to unverified users
     });
     setLoading(false);
 
@@ -28,44 +29,44 @@ export default function LoginPage() {
       return;
     }
     if (error.status === 429) {
-      setError(error.message ?? "Too many attempts. Try again later.");
+      setError({ kind: "warning", text: error.message ?? "Too many attempts. Try again later." });
     } else if (error.status === 403) {
-      setError("Please verify your email first. We've sent you a new link.");
+      setError({ kind: "warning", text: "Please verify your email first. We've sent you a new link." });
     } else {
       // Same message for unknown email and wrong password.
-      setError("Email or password is incorrect.");
+      setError({ kind: "error", text: "Email or password is incorrect." });
     }
   }
 
   return (
     <AuthCard
-      title="Sign in"
+      title="Welcome back"
+      subtitle="Sign in to your SyncPads workspace."
       footer={
         <>
-          New to SyncPads? <Link href="/signup" className="underline">Create an account</Link>
+          New to SyncPads?{" "}
+          <Link href="/signup" className={linkClass}>
+            Create your workspace
+          </Link>
         </>
       }
     >
-      {error && <Alert kind="error">{error}</Alert>}
+      {error && <Alert kind={error.kind}>{error.text}</Alert>}
       <form onSubmit={onSubmit}>
-        <Field label="Email" name="email" type="email" autoComplete="email" required />
-        <Field
-          label="Password"
-          name="password"
-          type="password"
-          autoComplete="current-password"
-          required
-        />
-        <div className="mb-4 text-right text-sm">
-          <Link href="/forgot-password" className="text-zinc-600 underline">
+        <Field label="Email" name="email" type="email" autoComplete="email" placeholder="you@example.com" required />
+        <div className="relative">
+          <Link
+            href="/forgot-password"
+            className="absolute right-0 top-0 text-sm font-medium text-slate-600 hover:text-slate-900"
+          >
             Forgot password?
           </Link>
+          <Field label="Password" name="password" type="password" autoComplete="current-password" required />
         </div>
-        <Button type="submit" disabled={loading}>
+        <Button type="submit" disabled={loading} className="mt-2">
           {loading ? "Signing in…" : "Sign in"}
         </Button>
       </form>
     </AuthCard>
   );
 }
-

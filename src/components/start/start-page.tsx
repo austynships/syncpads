@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Logo, LogoMark } from "@/components/brand";
+import { IconLogOut, IconSliders, IconUser } from "@/components/icons";
 import type { Wallpaper } from "@/db/schema";
 import { authClient } from "@/lib/auth-client";
 import type { GroupDTO, ItemDTO, PageLayout, StateDTO, Theme } from "@/lib/start-page-types";
@@ -169,8 +171,9 @@ export function StartPage({ userId, email }: { userId: string; email: string }) 
 
   if (!state || !page) {
     return (
-      <main className="flex min-h-screen items-center justify-center text-sm text-zinc-500">
-        {offline ? "Can't reach SyncPads. Check your connection." : "Loading your start page…"}
+      <main className="flex min-h-screen flex-col items-center justify-center gap-4 bg-slate-50 text-sm text-slate-500">
+        <LogoMark size={40} className={offline ? "" : "animate-pulse"} />
+        {offline ? "Can't reach SyncPads. Check your connection." : "Loading your workspace…"}
       </main>
     );
   }
@@ -180,11 +183,12 @@ export function StartPage({ userId, email }: { userId: string; email: string }) 
   return (
     <div className={dark ? "dark" : ""}>
       <div
-        className="min-h-screen bg-zinc-100 text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100"
+        className="min-h-screen bg-slate-100 text-slate-900 dark:bg-slate-950 dark:text-slate-100"
         style={background ? { background } : undefined}
       >
-        <header className="sticky top-0 z-30 flex items-center gap-3 bg-white/70 px-4 py-2 backdrop-blur dark:bg-zinc-900/70">
-          <span className="font-semibold">SyncPads</span>
+        <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-slate-900/[0.06] bg-white/75 px-3 backdrop-blur-md sm:px-5 dark:border-white/10 dark:bg-slate-950/70">
+          <LogoMark size={26} className="sm:hidden" />
+          <Logo tone="auto" height={24} className="mr-2 hidden sm:inline-flex" />
           <PageTabs
             pages={state.pages}
             currentId={page.id}
@@ -193,9 +197,16 @@ export function StartPage({ userId, email }: { userId: string; email: string }) 
             onReorder={reorderPages}
             onRename={renamePage}
           />
-          {offline && <span className="text-xs text-amber-600" title="Showing your saved copy">Offline</span>}
-          <button type="button" className="btn-ghost" onClick={() => setSettingsOpen(true)} aria-label="Settings" title="Settings">
-            ⚙
+          {offline && (
+            <span
+              className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-500/15 dark:text-amber-300"
+              title="Showing your saved copy"
+            >
+              Offline
+            </span>
+          )}
+          <button type="button" className="icon-btn" onClick={() => setSettingsOpen(true)} aria-label="Settings" title="Settings">
+            <IconSliders size={18} />
           </button>
           <AccountMenu email={email} userId={userId} />
         </header>
@@ -228,12 +239,15 @@ export function StartPage({ userId, email }: { userId: string; email: string }) 
 
         <div className="fixed bottom-4 left-1/2 z-50 flex -translate-x-1/2 flex-col gap-2" role="status">
           {toasts.map((t) => (
-            <div key={t.id} className="flex items-center gap-3 rounded-lg bg-zinc-900 px-4 py-2 text-sm text-white shadow-lg">
+            <div
+              key={t.id}
+              className="flex items-center gap-4 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-medium text-white shadow-xl ring-1 ring-white/10"
+            >
               {t.message}
               {t.action && (
                 <button
                   type="button"
-                  className="font-semibold text-sky-300"
+                  className="font-semibold text-sync-400 hover:text-sync-300"
                   onClick={() => {
                     t.action!.run();
                     setToasts((all) => all.filter((x) => x.id !== t.id));
@@ -257,26 +271,32 @@ function AccountMenu({ email, userId }: { email: string; userId: string }) {
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className="flex h-8 w-8 items-center justify-center rounded-full bg-zinc-800 text-sm font-semibold text-white dark:bg-zinc-200 dark:text-zinc-900"
+        className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-900 text-sm font-semibold text-white ring-2 ring-white transition hover:ring-sync-500/40 dark:bg-white dark:text-slate-900 dark:ring-slate-950"
         aria-label="Account"
+        aria-expanded={open}
       >
         {email[0]?.toUpperCase()}
       </button>
       {open && (
-        <div className="absolute right-0 mt-2 w-56 rounded-lg bg-white p-1 text-sm shadow-xl dark:bg-zinc-800">
-          <p className="truncate px-3 py-2 text-zinc-500">{email}</p>
-          <Link href="/settings" className="block rounded px-3 py-2 hover:bg-zinc-100 dark:hover:bg-zinc-700">
+        <div className="absolute right-0 mt-2 w-60 rounded-xl border border-slate-900/[0.07] bg-white p-1.5 text-sm shadow-xl dark:border-white/10 dark:bg-slate-900">
+          <p className="truncate px-3 pb-2 pt-1.5 text-xs text-slate-500 dark:text-slate-400">{email}</p>
+          <Link
+            href="/settings"
+            className="flex items-center gap-2 rounded-lg px-3 py-2 text-slate-800 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-white/10"
+          >
+            <IconUser size={15} />
             Account settings
           </Link>
           <button
             type="button"
-            className="block w-full rounded px-3 py-2 text-left hover:bg-zinc-100 dark:hover:bg-zinc-700"
+            className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-slate-800 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-white/10"
             onClick={async () => {
               clearCache(userId);
               await authClient.signOut();
               window.location.href = "/login";
             }}
           >
+            <IconLogOut size={15} />
             Sign out
           </button>
         </div>

@@ -35,7 +35,7 @@ export function Favicon({ url, size = 16 }: { url: string | null; size?: number 
       width={size}
       height={size}
       loading="lazy"
-      className="shrink-0 rounded dark:bg-zinc-100 dark:p-px"
+      className="shrink-0 rounded dark:bg-slate-100 dark:p-px"
       style={{ width: size, height: size }}
       onError={() => setFailed(true)}
     />

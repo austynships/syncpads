@@ -26,6 +26,7 @@ import { useRef, useState } from "react";
 import type { GroupDTO, GroupLayout, ItemDTO, PageDTO, PageLayout } from "@/lib/start-page-types";
 import { displayHost } from "@/lib/url";
 import { Favicon } from "./favicon";
+import { IconGrid, IconGrip, IconList, IconNote, IconPlus, IconX } from "@/components/icons";
 import { IconButton, LinkItem } from "./link-item";
 import { NoteItem } from "./note-item";
 
@@ -173,7 +174,7 @@ export function PageBoard({ page, actions }: { page: PageDTO; actions: BoardActi
       <DragOverlay>
         {activeItem ? <DragPreview item={activeItem} /> : null}
         {activeGroup ? (
-          <div className="card px-4 py-3 font-semibold shadow-xl">{activeGroup.name}</div>
+          <div className="card px-4 py-3 font-semibold shadow-2xl">{activeGroup.name}</div>
         ) : null}
       </DragOverlay>
     </DndContext>
@@ -183,7 +184,7 @@ export function PageBoard({ page, actions }: { page: PageDTO; actions: BoardActi
 function DragPreview({ item }: { item: ItemDTO }) {
   return (
     <div className="card flex items-center gap-2 px-3 py-2 text-sm shadow-xl">
-      {item.type === "link" ? <Favicon url={item.url} /> : <span>📝</span>}
+      {item.type === "link" ? <Favicon url={item.url} /> : <IconNote className="text-slate-500" />}
       <span className="max-w-56 truncate">
         {item.type === "link" ? item.title || displayHost(item.url ?? "") : "Note"}
       </span>
@@ -205,17 +206,17 @@ function GroupCard({ group, actions }: { group: GroupDTO; actions: BoardActions 
     <section
       ref={sortable.setNodeRef}
       style={style}
-      className={`card p-3 ${sortable.isDragging ? "opacity-40" : ""}`}
+      className={`card p-3.5 ${sortable.isDragging ? "opacity-40" : ""}`}
     >
-      <header className="group/header mb-2 flex items-center gap-1">
+      <header className="group/header mb-2 flex items-center gap-1.5">
         <button
           type="button"
-          className="cursor-grab touch-none px-1 text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200"
+          className="-ml-1 cursor-grab touch-none rounded p-0.5 text-slate-300 hover:text-slate-600 dark:text-slate-600 dark:hover:text-slate-300"
           aria-label="Drag group"
           {...sortable.attributes}
           {...sortable.listeners}
         >
-          ⠿
+          <IconGrip size={16} />
         </button>
         {renaming ? (
           <form
@@ -237,7 +238,7 @@ function GroupCard({ group, actions }: { group: GroupDTO; actions: BoardActions 
           </form>
         ) : (
           <h2
-            className="flex-1 cursor-text truncate font-semibold"
+            className="flex-1 cursor-text truncate text-[15px] font-semibold text-slate-900 dark:text-white"
             onClick={() => setRenaming(true)}
             title="Click to rename"
           >
@@ -249,7 +250,7 @@ function GroupCard({ group, actions }: { group: GroupDTO; actions: BoardActions 
             label={tiles ? "Show as list" : "Show as tiles"}
             onClick={() => actions.setGroupLayout(group.id, tiles ? "list" : "tiles")}
           >
-            {tiles ? "☰" : "▦"}
+            {tiles ? <IconList size={14} /> : <IconGrid size={14} />}
           </IconButton>
           <IconButton
             label="Delete group"
@@ -260,7 +261,7 @@ function GroupCard({ group, actions }: { group: GroupDTO; actions: BoardActions 
               }
             }}
           >
-            ✕
+            <IconX size={14} />
           </IconButton>
         </span>
       </header>
@@ -271,7 +272,7 @@ function GroupCard({ group, actions }: { group: GroupDTO; actions: BoardActions 
       >
         <div
           ref={droppable.setNodeRef}
-          className={`min-h-10 rounded-md ${droppable.isOver ? "bg-sky-50 dark:bg-sky-950/30" : ""} ${
+          className={`min-h-10 rounded-md ${droppable.isOver ? "bg-blue-50 ring-1 ring-blue-200 dark:bg-blue-400/10 dark:ring-blue-400/20" : ""} ${
             tiles ? "grid grid-cols-[repeat(auto-fill,minmax(5.5rem,1fr))] gap-1" : "flex flex-col gap-0.5"
           }`}
         >
@@ -295,7 +296,7 @@ function GroupCard({ group, actions }: { group: GroupDTO; actions: BoardActions 
             </SortableItem>
           ))}
           {group.items.length === 0 && !adding && (
-            <p className="col-span-full px-2 py-3 text-center text-xs text-zinc-500">
+            <p className="col-span-full rounded-lg border border-dashed border-slate-300 px-3 py-4 text-center text-xs text-slate-500 dark:border-slate-700 dark:text-slate-400">
               Drop links here, or paste a URL anywhere on the page.
             </p>
           )}
@@ -310,14 +311,18 @@ function GroupCard({ group, actions }: { group: GroupDTO; actions: BoardActions 
           }}
         />
       ) : (
-        <div className="mt-2 flex gap-1">
-          <button type="button" className="btn-ghost text-xs" onClick={() => setAdding(true)}>+ Link</button>
+        <div className="mt-2 flex gap-1 border-t border-slate-900/[0.06] pt-2 dark:border-white/10">
+          <button type="button" className="btn-ghost px-2 py-1 text-xs" onClick={() => setAdding(true)}>
+            <IconPlus size={14} />
+            Link
+          </button>
           <button
             type="button"
-            className="btn-ghost text-xs"
+            className="btn-ghost px-2 py-1 text-xs"
             onClick={async () => setNewNoteId(await actions.addNote(group.id))}
           >
-            + Note
+            <IconNote size={14} />
+            Note
           </button>
         </div>
       )}
@@ -346,13 +351,13 @@ function SortableItem({
       <button
         type="button"
         aria-label="Drag to move"
-        className={`absolute z-10 hidden cursor-grab touch-none rounded px-0.5 text-xs text-zinc-400 hover:text-zinc-700 group-hover/drag:block group-focus-within/drag:block [@media(hover:none)]:block dark:hover:text-zinc-200 ${
-          tiles ? "left-1 top-1" : "-left-3 top-1/2 -translate-y-1/2"
+        className={`absolute z-10 hidden cursor-grab touch-none rounded p-0.5 text-slate-400 hover:text-slate-700 group-hover/drag:block group-focus-within/drag:block [@media(hover:none)]:block dark:hover:text-slate-200 ${
+          tiles ? "left-1 top-1" : "-left-3.5 top-1/2 -translate-y-1/2"
         }`}
         {...s.attributes}
         {...s.listeners}
       >
-        ⠿
+        <IconGrip size={14} />
       </button>
       {children}
     </div>
@@ -386,9 +391,10 @@ function AddGroup({ onAdd }: { onAdd: (name: string) => void }) {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="rounded-xl border-2 border-dashed border-zinc-300/80 p-4 text-sm text-zinc-500 hover:border-zinc-400 hover:text-zinc-700 dark:border-zinc-600 dark:hover:text-zinc-200"
+        className="flex items-center justify-center gap-1.5 rounded-2xl border-2 border-dashed border-slate-300 bg-white/40 p-5 text-sm font-medium text-slate-500 transition hover:border-sync-500/60 hover:text-slate-900 dark:border-slate-700 dark:bg-white/5 dark:hover:text-white"
       >
-        + Add group
+        <IconPlus size={16} />
+        Add group
       </button>
     );
   }

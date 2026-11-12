@@ -4,6 +4,7 @@ import { closestCenter, DndContext, PointerSensor, useSensor, useSensors, type D
 import { arrayMove, horizontalListSortingStrategy, SortableContext, useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useState } from "react";
+import { IconPlus } from "@/components/icons";
 import type { PageDTO } from "@/lib/start-page-types";
 
 type Props = {
@@ -27,7 +28,7 @@ export function PageTabs({ pages, currentId, onSelect, onAdd, onReorder, onRenam
   }
 
   return (
-    <nav className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto" aria-label="Pages">
+    <nav className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto py-2" aria-label="Pages">
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
         <SortableContext items={pages.map((p) => p.id)} strategy={horizontalListSortingStrategy}>
           {pages.map((p) => (
@@ -53,8 +54,8 @@ export function PageTabs({ pages, currentId, onSelect, onAdd, onReorder, onRenam
           />
         </form>
       ) : (
-        <button type="button" className="tab shrink-0" onClick={() => setAdding(true)} aria-label="Add page" title="Add page">
-          +
+        <button type="button" className="icon-btn shrink-0" onClick={() => setAdding(true)} aria-label="Add page" title="Add page">
+          <IconPlus size={16} />
         </button>
       )}
     </nav>

@@ -35,7 +35,7 @@ export function ResetPasswordForm({ token }: { token: string }) {
     return (
       <>
         <Alert kind="success">Your password has been reset. You&apos;ve been signed out everywhere.</Alert>
-        <Link href="/login" className="text-sm underline">
+        <Link href="/login" className="btn-primary w-full py-2.5">
           Sign in
         </Link>
       </>
@@ -47,7 +47,8 @@ export function ResetPasswordForm({ token }: { token: string }) {
       {error && <Alert kind="error">{error}</Alert>}
       <form onSubmit={onSubmit}>
         <Field
-          label="New password (at least 8 characters)"
+          hint="At least 8 characters"
+          label="New password"
           name="password"
           type="password"
           autoComplete="new-password"

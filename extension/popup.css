@@ -1,25 +1,27 @@
 :root {
+  /* SyncPads brand (syncpads-brand-identity.md) */
   --bg: #ffffff;
-  --text: #18181b;
-  --muted: #71717a;
-  --border: #d4d4d8;
+  --text: #0b1f44;
+  --muted: #64748b;
+  --border: #cbd5e1;
   --field: #ffffff;
-  --primary: #18181b;
+  --primary: #d93a0e; /* Sync Orange, one step darker so white text passes AA */
+  --primary-hover: #b32e09;
   --primary-text: #ffffff;
-  --ok: #15803d;
+  --focus: rgba(250, 70, 22, 0.18);
+  --accent: #fa4616;
+  --ok: #047857;
   --error: #dc2626;
   color-scheme: light;
 }
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #18181b;
-    --text: #f4f4f5;
-    --muted: #a1a1aa;
-    --border: #3f3f46;
-    --field: #27272a;
-    --primary: #f4f4f5;
-    --primary-text: #18181b;
-    --ok: #4ade80;
+    --bg: #06152f;
+    --text: #f8fafc;
+    --muted: #94a3b8;
+    --border: #1e3358;
+    --field: #0b1f44;
+    --ok: #34d399;
     --error: #f87171;
     color-scheme: dark;
   }
@@ -30,11 +32,16 @@ body {
   width: 340px;
   margin: 0;
   padding: 12px 14px 14px;
-  font: 13px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif;
+  font: 13px/1.45 "Plus Jakarta Sans", Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
   background: var(--bg);
   color: var(--text);
 }
-header { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+header { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; padding-bottom: 10px; border-bottom: 1px solid var(--border); }
+header a { font-weight: 600; text-decoration: none; }
+header a:hover { color: var(--accent); }
+.logo { height: 22px; width: auto; }
+.logo-dark { display: none; }
+@media (prefers-color-scheme: dark) { .logo-light { display: none; } .logo-dark { display: block; } }
 header a { margin-left: auto; }
 a { color: inherit; }
 .muted { color: var(--muted); }
@@ -51,8 +58,10 @@ input, select {
   color: var(--text);
   background: var(--field);
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: 8px;
+  outline: none;
 }
+input:focus, select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--focus); }
 .row { display: flex; gap: 8px; }
 .row > * { flex: 1; min-width: 0; }
 button {
@@ -63,10 +72,13 @@ button {
   color: var(--text);
   background: transparent;
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: 8px;
   cursor: pointer;
 }
-button.primary { background: var(--primary); color: var(--primary-text); border-color: var(--primary); }
+button:hover:not(:disabled) { border-color: var(--muted); }
+button.primary { background: var(--primary); color: var(--primary-text); border-color: var(--primary); font-weight: 600; }
+button.primary:hover:not(:disabled) { background: var(--primary-hover); border-color: var(--primary-hover); }
+button:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--focus); }
 button:disabled { opacity: 0.5; cursor: default; }
 hr { border: 0; border-top: 1px solid var(--border); margin: 12px 0; }
 #message { margin: 10px 0 0; font-weight: 500; }

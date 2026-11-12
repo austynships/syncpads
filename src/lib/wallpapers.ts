@@ -2,6 +2,11 @@ import type { Wallpaper } from "@/db/schema";
 
 /** Built-in wallpapers: CSS gradients, so there are no image files to host. */
 export const PRESET_WALLPAPERS: Record<string, { name: string; css: string }> = {
+  // Brand presets first (navy, ice and a restrained orange glow).
+  navy: { name: "Navy", css: "linear-gradient(160deg, #0b1f44 0%, #06152f 100%)" },
+  horizon: { name: "Horizon", css: "radial-gradient(120% 90% at 100% 100%, rgba(250,70,22,0.35) 0%, rgba(250,70,22,0) 55%), linear-gradient(160deg, #0b1f44 0%, #06152f 100%)" },
+  ice: { name: "Ice", css: "linear-gradient(160deg, #f8fafc 0%, #dbeafe 100%)" },
+  daybreak: { name: "Daybreak", css: "radial-gradient(100% 80% at 100% 0%, rgba(250,70,22,0.14) 0%, rgba(250,70,22,0) 60%), linear-gradient(160deg, #f8fafc 0%, #e2e8f0 100%)" },
   dawn: { name: "Dawn", css: "linear-gradient(135deg, #fbc2eb 0%, #a6c1ee 100%)" },
   ocean: { name: "Ocean", css: "linear-gradient(135deg, #2193b0 0%, #6dd5ed 100%)" },
   forest: { name: "Forest", css: "linear-gradient(135deg, #134e5e 0%, #71b280 100%)" },
@@ -12,7 +17,7 @@ export const PRESET_WALLPAPERS: Record<string, { name: string; css: string }> = 
   plum: { name: "Plum", css: "linear-gradient(135deg, #41295a 0%, #2f0743 100%)" },
 };
 
-export const PRESET_COLORS = ["#f4f4f5", "#e0f2fe", "#fef3c7", "#dcfce7", "#18181b", "#1e293b", "#3b0764", "#7f1d1d"];
+export const PRESET_COLORS = ["#f8fafc", "#dbeafe", "#e2e8f0", "#fff4ef", "#0b1f44", "#06152f", "#334155", "#1e3a8a"];
 
 /** CSS `background` value for a wallpaper, or undefined for none. */
 export function wallpaperCss(wallpaper: Wallpaper | null | undefined): string | undefined {

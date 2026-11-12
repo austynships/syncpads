@@ -3,31 +3,68 @@
 /* Dark mode follows a .dark class on a wrapper (set from the user's theme setting). */
 @custom-variant dark (&:where(.dark, .dark *));
 
+/*
+ * SyncPads brand tokens (syncpads-brand-identity.md).
+ *  - Neutrals are Tailwind's slate scale, which matches the brand's Slate
+ *    (#64748B), Ice White (#F8FAFC) and Soft Border (#CBD5E1). Its dark end is
+ *    pinned to Navy Blue (#0B1F44) and Deep Navy (#06152F), so "slate-900"
+ *    means brand navy everywhere.
+ *  - "sync" is Sync Orange. 500 is the brand color, for highlights, active
+ *    indicators, focus and the logo. Buttons use 600: white text on 500 is
+ *    only 3.5:1, while 600 passes WCAG AA (4.6:1).
+ */
+@theme {
+  --font-sans: var(--font-jakarta), "Inter", ui-sans-serif, system-ui, sans-serif;
+
+  --color-slate-800: #142a52;
+  --color-slate-900: #0b1f44;
+  --color-slate-950: #06152f;
+
+  --color-sync-50: #fff4ef;
+  --color-sync-100: #ffe4d8;
+  --color-sync-200: #ffc5ad;
+  --color-sync-300: #fd9b78;
+  --color-sync-400: #fb6c42;
+  --color-sync-500: #fa4616;
+  --color-sync-600: #d93a0e;
+  --color-sync-700: #b32e09;
+
+  --color-sky-brand: #dbeafe;
+}
+
 body {
-  @apply bg-zinc-50 text-zinc-900 antialiased;
+  @apply bg-slate-50 text-slate-900 antialiased;
 }
 
 @layer components {
+  /* Layered, lightly translucent surface. Used over wallpapers on the start page. */
   .card {
-    @apply rounded-xl bg-white/90 shadow-sm ring-1 ring-black/5 backdrop-blur dark:bg-zinc-900/85 dark:ring-white/10;
+    @apply rounded-2xl border border-slate-900/[0.07] bg-white/85 shadow-[0_1px_2px_rgb(11_31_68/0.04),0_8px_24px_-12px_rgb(11_31_68/0.12)] backdrop-blur-md dark:border-white/10 dark:bg-slate-900/80;
   }
   .field {
-    @apply w-full rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 text-sm outline-none focus:border-sky-500 dark:border-zinc-600 dark:bg-zinc-800;
+    @apply w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-sync-500 focus:ring-4 focus:ring-sync-500/15 dark:border-slate-700 dark:bg-slate-950/60 dark:text-slate-100;
   }
   .btn-primary {
-    @apply rounded-md bg-zinc-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300;
+    @apply inline-flex items-center justify-center gap-1.5 rounded-lg bg-sync-600 px-3.5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-sync-700 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sync-500/30 disabled:opacity-50;
+  }
+  .btn-secondary {
+    @apply inline-flex items-center justify-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3.5 py-2 text-sm font-semibold text-slate-900 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-slate-900/10 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800;
   }
   .btn-ghost {
-    @apply rounded-md px-2.5 py-1.5 text-sm text-zinc-600 hover:bg-zinc-200/70 dark:text-zinc-300 dark:hover:bg-zinc-700/70;
+    @apply inline-flex items-center justify-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm font-medium text-slate-600 transition hover:bg-slate-900/5 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-white/10 dark:hover:text-white;
+  }
+  .icon-btn {
+    @apply inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 transition hover:bg-slate-900/5 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-white/10 dark:hover:text-white;
   }
   .tab {
-    @apply whitespace-nowrap rounded-md px-3 py-1.5 text-sm text-zinc-600 hover:bg-zinc-200/70 dark:text-zinc-300 dark:hover:bg-zinc-700/70;
+    @apply relative whitespace-nowrap rounded-lg px-3 py-1.5 text-sm font-medium text-slate-600 transition hover:bg-slate-900/5 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-white/10 dark:hover:text-white;
   }
+  /* Active page: navy pill with an orange indicator underneath. */
   .tab-active {
-    @apply bg-zinc-900 text-white hover:bg-zinc-900 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-100;
+    @apply bg-slate-900 text-white shadow-sm hover:bg-slate-900 hover:text-white after:absolute after:inset-x-3 after:-bottom-[5px] after:h-0.5 after:rounded-full after:bg-sync-500 dark:bg-white dark:text-slate-900 dark:hover:bg-white dark:hover:text-slate-900;
   }
   .label {
-    @apply mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-500;
+    @apply mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400;
   }
 }
 
@@ -38,13 +75,14 @@ body {
 .note-content h3 { font-weight: 600; }
 .note-content ul { list-style: disc; padding-left: 1.25rem; }
 .note-content ol { list-style: decimal; padding-left: 1.25rem; }
-.note-content blockquote { border-left: 3px solid #a1a1aa; padding-left: 0.75rem; color: #71717a; }
-.note-content code { background: rgb(0 0 0 / 0.07); border-radius: 0.25rem; padding: 0 0.25rem; font-size: 0.85em; }
-.note-content pre { background: rgb(0 0 0 / 0.07); border-radius: 0.375rem; padding: 0.5rem; overflow-x: auto; }
-.note-content a { color: #0284c7; text-decoration: underline; }
+.note-content blockquote { border-left: 3px solid #cbd5e1; padding-left: 0.75rem; color: #64748b; }
+.note-content code { background: rgb(11 31 68 / 0.07); border-radius: 0.25rem; padding: 0 0.25rem; font-size: 0.85em; }
+.note-content pre { background: rgb(11 31 68 / 0.07); border-radius: 0.375rem; padding: 0.5rem; overflow-x: auto; }
+.note-content a { color: #1d4ed8; text-decoration: underline; text-underline-offset: 2px; }
+.dark .note-content a { color: #93c5fd; }
 .note-content p.is-editor-empty:first-child::before {
   content: attr(data-placeholder);
-  color: #a1a1aa;
+  color: #94a3b8;
   float: left;
   height: 0;
   pointer-events: none;
