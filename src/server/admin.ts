@@ -21,6 +21,11 @@ export function isAdmin(user: { email: string; emailVerified?: boolean | null } 
   return adminEmails().includes(user.email.toLowerCase());
 }
 
+/** The dashboard's time window: the last 24 hours, 7 days or 30 days. */
+export const PERIODS = { day: 1, week: 7, month: 30 } as const;
+export type Period = keyof typeof PERIODS;
+export const isPeriod = (p: unknown): p is Period => typeof p === "string" && p in PERIODS;
+
 const DAY = 86_400_000;
 const since = (days: number) => new Date(Date.now() - days * DAY);
 
@@ -29,28 +34,22 @@ async function count(query: Promise<{ n: number }[]>) {
   return Number(row?.n ?? 0);
 }
 
-/** Revenue from Stripe, net of refunds, in US cents. Null when billing isn't set up or Stripe can't be reached. */
-async function revenue() {
+/** Revenue from Stripe since `from`, net of refunds, in US cents. Null when billing isn't set up or Stripe can't be reached. */
+async function revenue(from: Date) {
   if (!billingAvailable()) return null;
   try {
-    const periods = { day: since(1), week: since(7), month: since(30) };
-    const totals = { day: 0, week: 0, month: 0 };
+    let total = 0;
     let charges = 0;
-    const from = Math.floor(periods.month.getTime() / 1000);
-    for await (const charge of stripe().charges.list({ created: { gte: from }, limit: 100 })) {
+    for await (const charge of stripe().charges.list({ created: { gte: Math.floor(from.getTime() / 1000) }, limit: 100 })) {
       if (!charge.paid || charge.status !== "succeeded") continue;
-      const net = charge.amount - (charge.amount_refunded ?? 0);
-      const at = charge.created * 1000;
+      total += charge.amount - (charge.amount_refunded ?? 0);
       charges++;
-      totals.month += net;
-      if (at >= periods.week.getTime()) totals.week += net;
-      if (at >= periods.day.getTime()) totals.day += net;
     }
     const balance = await stripe().balance.retrieve();
     const usd = (list: { amount: number; currency: string }[]) =>
       list.filter((b) => b.currency === "usd").reduce((s, b) => s + b.amount, 0);
     return {
-      ...totals,
+      total,
       charges,
       available: usd(balance.available),
       pending: usd(balance.pending),
@@ -62,26 +61,51 @@ async function revenue() {
   }
 }
 
-export async function adminStats() {
+/**
+ * Sign-ups over the period, one bar per hour for "day" and per day otherwise.
+ * Keys match the bucket labels built in JS (UTC, like the database).
+ */
+async function signupSeries(period: Period, from: Date) {
+  const hourly = period === "day";
+  const fmt = hourly ? "%Y-%m-%dT%H" : "%Y-%m-%d";
+  const rows = await db
+    .select({ key: sql<string>`DATE_FORMAT(${users.createdAt}, ${fmt})`, n: sql<number>`COUNT(*)` })
+    .from(users)
+    .where(gte(users.createdAt, from))
+    .groupBy(sql`DATE_FORMAT(${users.createdAt}, ${fmt})`);
+  const byKey = new Map(rows.map((r) => [String(r.key), Number(r.n)]));
+  const buckets = hourly ? 24 : PERIODS[period];
+  const step = hourly ? 3_600_000 : DAY;
+  return Array.from({ length: buckets }, (_, i) => {
+    const at = new Date(Date.now() - (buckets - 1 - i) * step);
+    const key = at.toISOString().slice(0, hourly ? 13 : 10);
+    return {
+      key,
+      label: hourly ? `${key.slice(11, 13)}:00` : key.slice(5),
+      n: byKey.get(key) ?? 0,
+    };
+  });
+}
+
+export async function adminStats(period: Period = "week") {
+  const from = since(PERIODS[period]);
   const [
     totalUsers,
     verifiedUsers,
     proUsers,
-    newUsersDay,
-    newUsersWeek,
-    newUsersMonth,
-    activeUsersWeek,
+    newUsers,
+    activeUsers,
     links,
-    linksWeek,
+    linksAdded,
     notes,
+    notesAdded,
     totalPages,
-    pagesWeek,
+    pagesAdded,
     agentUsers,
     activeAgents,
-    agentUsersActiveWeek,
-    agentCallsDay,
-    agentCallsWeek,
-    agentWritesWeek,
+    agentUsersActive,
+    agentCalls,
+    agentWrites,
     smartUsers,
     inboxWaiting,
     agentItemsApproved,
@@ -90,36 +114,39 @@ export async function adminStats() {
     count(db.select({ n: sql<number>`COUNT(*)` }).from(users)),
     count(db.select({ n: sql<number>`COUNT(*)` }).from(users).where(eq(users.emailVerified, true))),
     count(db.select({ n: sql<number>`COUNT(*)` }).from(users).where(eq(users.plan, "pro"))),
-    count(db.select({ n: sql<number>`COUNT(*)` }).from(users).where(gte(users.createdAt, since(1)))),
-    count(db.select({ n: sql<number>`COUNT(*)` }).from(users).where(gte(users.createdAt, since(7)))),
-    count(db.select({ n: sql<number>`COUNT(*)` }).from(users).where(gte(users.createdAt, since(30)))),
-    // Active = signed in or used SyncPads (session refreshed) in the last 7 days.
-    count(db.select({ n: sql<number>`COUNT(DISTINCT ${sessions.userId})` }).from(sessions).where(gte(sessions.updatedAt, since(7)))),
+    count(db.select({ n: sql<number>`COUNT(*)` }).from(users).where(gte(users.createdAt, from))),
+    // Active = signed in or used SyncPads (session refreshed) in the period.
+    count(db.select({ n: sql<number>`COUNT(DISTINCT ${sessions.userId})` }).from(sessions).where(gte(sessions.updatedAt, from))),
     count(db.select({ n: sql<number>`COUNT(*)` }).from(items).where(and(eq(items.type, "link"), eq(items.status, "active")))),
     count(
       db
         .select({ n: sql<number>`COUNT(*)` })
         .from(items)
-        .where(and(eq(items.type, "link"), eq(items.status, "active"), gte(items.createdAt, since(7)))),
+        .where(and(eq(items.type, "link"), eq(items.status, "active"), gte(items.createdAt, from))),
     ),
     count(db.select({ n: sql<number>`COUNT(*)` }).from(items).where(and(eq(items.type, "note"), eq(items.status, "active")))),
+    count(
+      db
+        .select({ n: sql<number>`COUNT(*)` })
+        .from(items)
+        .where(and(eq(items.type, "note"), eq(items.status, "active"), gte(items.createdAt, from))),
+    ),
     count(db.select({ n: sql<number>`COUNT(*)` }).from(pages)),
-    count(db.select({ n: sql<number>`COUNT(*)` }).from(pages).where(gte(pages.createdAt, since(7)))),
+    count(db.select({ n: sql<number>`COUNT(*)` }).from(pages).where(gte(pages.createdAt, from))),
     count(db.select({ n: sql<number>`COUNT(DISTINCT ${agents.userId})` }).from(agents).where(isNull(agents.revokedAt))),
     count(db.select({ n: sql<number>`COUNT(*)` }).from(agents).where(isNull(agents.revokedAt))),
     count(
       db
         .select({ n: sql<number>`COUNT(DISTINCT ${agents.userId})` })
         .from(agents)
-        .where(and(isNull(agents.revokedAt), gte(agents.lastUsedAt, since(7)))),
+        .where(and(isNull(agents.revokedAt), gte(agents.lastUsedAt, from))),
     ),
-    count(db.select({ n: sql<number>`COUNT(*)` }).from(activityLog).where(gte(activityLog.createdAt, since(1)))),
-    count(db.select({ n: sql<number>`COUNT(*)` }).from(activityLog).where(gte(activityLog.createdAt, since(7)))),
+    count(db.select({ n: sql<number>`COUNT(*)` }).from(activityLog).where(gte(activityLog.createdAt, from))),
     count(
       db
         .select({ n: sql<number>`COUNT(*)` })
         .from(activityLog)
-        .where(and(sql`${activityLog.action} IN ('add_link', 'save_context')`, gte(activityLog.createdAt, since(7)))),
+        .where(and(sql`${activityLog.action} IN ('add_link', 'save_context')`, gte(activityLog.createdAt, from))),
     ),
     count(db.select({ n: sql<number>`COUNT(*)` }).from(userSettings).where(eq(userSettings.aiEnabled, true))),
     count(db.select({ n: sql<number>`COUNT(*)` }).from(items).where(eq(items.status, "inbox"))),
@@ -140,12 +167,6 @@ export async function adminStats() {
     .where(isNull(agents.revokedAt))
     .groupBy(agents.client);
 
-  const signupsByDay = await db
-    .select({ day: sql<string>`DATE(${users.createdAt})`, n: sql<number>`COUNT(*)` })
-    .from(users)
-    .where(gte(users.createdAt, since(30)))
-    .groupBy(sql`DATE(${users.createdAt})`);
-
   const recentUsers = await db
     .select({
       email: users.email,
@@ -153,6 +174,7 @@ export async function adminStats() {
       plan: users.plan,
       verified: users.emailVerified,
       createdAt: users.createdAt,
+      // Written out as users.id: an interpolated column would render unqualified and match the subquery's own id.
       links: sql<number>`(SELECT COUNT(*) FROM items i WHERE i.user_id = users.id AND i.type = 'link' AND i.status = 'active')`,
       agents: sql<number>`(SELECT COUNT(*) FROM agents a WHERE a.user_id = users.id AND a.revoked_at IS NULL)`,
     })
@@ -162,8 +184,9 @@ export async function adminStats() {
 
   const decided = agentItemsApproved + agentItemsDismissed;
   return {
+    period,
     generatedAt: new Date(),
-    revenue: await revenue(),
+    revenue: await revenue(from),
     subscriptions: {
       paying: paying.length,
       monthly: paying.filter((s) => s.interval === "month").length,
@@ -176,27 +199,24 @@ export async function adminStats() {
       total: totalUsers,
       verified: verifiedUsers,
       pro: proUsers,
-      newDay: newUsersDay,
-      newWeek: newUsersWeek,
-      newMonth: newUsersMonth,
-      activeWeek: activeUsersWeek,
+      new: newUsers,
+      active: activeUsers,
       smartFeatures: smartUsers,
     },
-    content: { links, linksWeek, notes, pages: totalPages, pagesWeek },
+    content: { links, linksAdded, notes, notesAdded, pages: totalPages, pagesAdded },
     mcp: {
       usersConnected: agentUsers,
       activeAgents,
-      usersActiveWeek: agentUsersActiveWeek,
-      callsDay: agentCallsDay,
-      callsWeek: agentCallsWeek,
-      writesWeek: agentWritesWeek,
+      usersActive: agentUsersActive,
+      calls: agentCalls,
+      writes: agentWrites,
       inboxWaiting,
       approvalRate: decided ? agentItemsApproved / decided : null,
-      // The PRD's gate metric: weekly active users with a connected agent ÷ weekly active users.
-      connectionRate: activeUsersWeek ? Math.min(1, agentUsersActiveWeek / activeUsersWeek) : null,
+      // The PRD's gate metric: active users who used a connected agent ÷ active users, over the period.
+      connectionRate: activeUsers ? Math.min(1, agentUsersActive / activeUsers) : null,
       byClient: agentsByClient.map((r) => ({ client: r.client, n: Number(r.n) })),
     },
-    signupsByDay: signupsByDay.map((r) => ({ day: String(r.day).slice(0, 10), n: Number(r.n) })),
+    signups: await signupSeries(period, from),
     recentUsers: recentUsers.map((u) => ({ ...u, links: Number(u.links), agents: Number(u.agents) })),
   };
 }

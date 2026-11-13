@@ -56,16 +56,21 @@ describe.skipIf(!url)("adminStats", () => {
   });
 
   it("counts new users, links and pages", async () => {
-    const before = await admin.adminStats();
+    const before = await admin.adminStats("day");
     await dbMod.db.insert(schema.users).values({ id: user, email: `${user}@test.local`, name: "Admin test" });
     await sp.ensureUserSetup(user);
     const state = await sp.getState(user);
     await sp.createItem(user, { groupId: state.pages[0].groups[0].id, type: "link", url: "https://admin-stats.example.com" });
     await sp.createPage(user, { name: "Second" });
 
-    const after = await admin.adminStats();
+    const after = await admin.adminStats("day");
     expect(after.users.total).toBe(before.users.total + 1);
-    expect(after.users.newDay).toBe(before.users.newDay + 1);
+    expect(after.users.new).toBe(before.users.new + 1);
+    expect(after.content.linksAdded).toBe(before.content.linksAdded + 1);
+    // One bar per hour for "day", and the new user lands in the last one.
+    expect(after.signups).toHaveLength(24);
+    expect(after.signups.at(-1)!.n).toBe(before.signups.at(-1)!.n + 1);
+    expect((await admin.adminStats("month")).signups).toHaveLength(30);
     expect(after.content.links).toBe(before.content.links + 1);
     expect(after.content.pages - before.content.pages).toBeGreaterThanOrEqual(2);
     expect(after.recentUsers.some((u) => u.email === `${user}@test.local` && u.links === 1)).toBe(true);
