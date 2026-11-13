@@ -282,7 +282,12 @@ function ConnectCard({ mcpUrl }: { mcpUrl: string }) {
 
   return (
     <section className="rounded-2xl border border-slate-900/[0.07] bg-white p-6 shadow-sm">
-      <h2 className="text-lg font-bold text-slate-900">Connect an agent</h2>
+      <div className="flex items-baseline justify-between gap-3">
+        <h2 className="text-lg font-bold text-slate-900">Connect an agent</h2>
+        <a href="/docs/connect" className="text-sm font-medium text-slate-600 hover:text-slate-900">
+          Setup guide →
+        </a>
+      </div>
       <p className="mt-1 text-sm text-slate-600">Add SyncPads to your AI app with this address:</p>
       <div className="mt-3 flex gap-2">
         <code className="flex-1 truncate rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-900">{mcpUrl}</code>
@@ -318,7 +323,10 @@ function ConnectCard({ mcpUrl }: { mcpUrl: string }) {
       </div>
       <p className="mt-4 rounded-xl bg-slate-50 px-4 py-3 text-sm text-slate-700">
         Once connected, ask your AI to &ldquo;check SyncPads&rdquo; for anything you&apos;ve saved, or say{" "}
-        <strong>&ldquo;save this to SyncPads&rdquo;</strong> to keep a conversation&apos;s decisions and links for every AI you use.
+        <strong>&ldquo;save this to SyncPads&rdquo;</strong> to keep a conversation&apos;s decisions and links for every AI you use.{" "}
+        <a href="/docs/guides" className="font-semibold text-slate-900 underline decoration-sync-500 underline-offset-2">
+          Get the most out of it
+        </a>
       </p>
       <ol className="mt-4 space-y-2 text-sm text-slate-700">
         {client.steps.map((step, i) =>

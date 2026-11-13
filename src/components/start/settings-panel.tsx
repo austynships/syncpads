@@ -139,6 +139,9 @@ export function SettingsPanel(p: Props) {
               </span>
               <span aria-hidden="true">→</span>
             </Link>
+            <a href="/docs" className="mt-2 block text-center text-xs font-medium text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white">
+              How to use SyncPads with your AI
+            </a>
           </section>
 
           <section>

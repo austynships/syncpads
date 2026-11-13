@@ -93,6 +93,7 @@ export default async function PricingPage() {
         <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-3 px-4 py-6 text-sm text-slate-500 sm:px-6">
           <span>© {new Date().getFullYear()} SyncPads</span>
           <span className="flex gap-4">
+            <Link href="/docs" className="hover:text-slate-900">Docs</Link>
             <Link href="/privacy" className="hover:text-slate-900">Privacy</Link>
             <Link href="/terms" className="hover:text-slate-900">Terms</Link>
             <CookieSettingsLink className="hover:text-slate-900" />
