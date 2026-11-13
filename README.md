@@ -99,6 +99,10 @@ It's safe to run again. If `.env` lost the webhook secret, add `--recreate-webho
 
 Run the worker locally with `npm run worker` (bundles `src/worker/main.ts` to `dist/worker.cjs` and runs it with `.env`).
 
+## Admin dashboard
+
+`/admin` shows revenue (last 24 hours, 7 days and 30 days, net of refunds, from Stripe), MRR, subscribers, users, links, pages, notes and AI agent usage. List admins by email in the server's `.env` as `ADMIN_EMAILS=a@example.com,b@example.com`, then recreate the app (`docker compose -f docker-compose.prod.yml up -d app`). An admin's email must be verified. Everyone else gets a 404 at `/admin`.
+
 ## Run locally
 
 Requirements: Node.js 22 or newer, and Docker Desktop (for MariaDB and Redis).
