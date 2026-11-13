@@ -53,13 +53,11 @@ function Tool({
 }) {
   return (
     <section className="mt-12 border-t border-slate-900/[0.07] pt-10 first-of-type:mt-6 first-of-type:border-0 first-of-type:pt-0">
-      <div className="flex flex-wrap items-center gap-3">
+      <div className="mb-3 flex flex-wrap items-center gap-3 [&>h2]:mb-0 [&>h2]:mt-0">
         <H2 id={id}>
           <code className="font-mono">{id}</code>
         </H2>
-        <span className="-mt-0.5">
-          <PlanBadge plan={plan} />
-        </span>
+        <PlanBadge plan={plan} />
       </div>
       <Prose>{summary}</Prose>
       <div className="mt-5">
