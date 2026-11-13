@@ -20,7 +20,7 @@ import { clearCache, useStartPage } from "./use-start-page";
 
 type Toast = { id: number; message: string; action?: { label: string; run: () => void } };
 
-export function StartPage({ userId, email }: { userId: string; email: string }) {
+export function StartPage({ userId, email, admin = false }: { userId: string; email: string; admin?: boolean }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
   const toast = useCallback((message: string, action?: Toast["action"]) => {
     const id = Date.now() + Math.random();
@@ -235,7 +235,7 @@ export function StartPage({ userId, email }: { userId: string; email: string }) 
           <button type="button" className="icon-btn" onClick={() => setSettingsOpen(true)} aria-label="Settings" title="Settings">
             <IconSliders size={18} />
           </button>
-          <AccountMenu email={email} userId={userId} />
+          <AccountMenu email={email} userId={userId} admin={admin} />
         </header>
 
         <main className="p-4 md:p-6">
@@ -325,7 +325,7 @@ function InboxButton({ count, onClick }: { count: number; onClick: () => void })
   );
 }
 
-function AccountMenu({ email, userId }: { email: string; userId: string }) {
+function AccountMenu({ email, userId, admin }: { email: string; userId: string; admin: boolean }) {
   const [open, setOpen] = useState(false);
   return (
     <div className="relative">
@@ -355,6 +355,15 @@ function AccountMenu({ email, userId }: { email: string; userId: string }) {
             <IconUser size={15} />
             Account settings
           </Link>
+          {admin && (
+            <a
+              href="/admin"
+              className="flex items-center gap-2 rounded-lg px-3 py-2 text-slate-800 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-white/10"
+            >
+              <IconSliders size={15} />
+              Admin dashboard
+            </a>
+          )}
           <button
             type="button"
             className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-slate-800 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-white/10"

@@ -44,6 +44,8 @@ services:
       # Plans and billing (optional until set up).
       STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
       STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
+      # Who can open /admin (comma-separated emails; each must be verified).
+      ADMIN_EMAILS: ${ADMIN_EMAILS:-}
     depends_on:
       mariadb:
         condition: service_healthy

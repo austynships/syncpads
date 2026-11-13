@@ -6,7 +6,7 @@ import dynamic from "next/dynamic";
 // (SP-2: paint in under 300 ms, then sync), so there's no server render.
 const StartPage = dynamic(() => import("./start-page").then((m) => m.StartPage), { ssr: false });
 
-export function StartPageLoader(props: { userId: string; email: string }) {
+export function StartPageLoader(props: { userId: string; email: string; admin?: boolean }) {
   return <StartPage {...props} />;
 }
 
