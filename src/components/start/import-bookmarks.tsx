@@ -189,7 +189,7 @@ export function ExportPages({ page }: { page: { id: string; name: string } }) {
           </button>
         ))}
       </div>
-      <div className="grid gap-2 sm:grid-cols-2">
+      <div className="grid gap-2">
         <a href={href("json")} download className="btn-secondary justify-center">
           SyncPads file (.json)
         </a>
