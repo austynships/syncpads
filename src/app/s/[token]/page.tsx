@@ -1,9 +1,7 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Logo } from "@/components/brand";
+import { Logo, LogoMark } from "@/components/brand";
 import { Favicon } from "@/components/start/favicon";
-import { LEGAL } from "@/lib/legal";
 import { sanitizeNoteHtml } from "@/lib/sanitize";
 import { getSession } from "@/lib/session";
 import { getSharedPage, type SharedPage } from "@/server/share";
@@ -72,7 +70,7 @@ export default async function SharedPageView({ params }: Props) {
         </div>
       )}
 
-      <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-10 sm:px-6">
+      <main className="mx-auto w-full max-w-6xl flex-1 px-4 pb-24 pt-10 sm:px-6">
         <div className="mb-8">
           <p className="text-sm font-semibold uppercase tracking-wider text-sync-600">Shared page</p>
           <h1 className="mt-2 text-balance text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">{page.name}</h1>
@@ -106,26 +104,14 @@ export default async function SharedPageView({ params }: Props) {
         )}
       </main>
 
-      <footer className="border-t border-slate-900/5 bg-white">
-        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-6 text-sm text-slate-500 sm:px-6">
-          <span>
-            Made with{" "}
-            <Link href="/" className="font-semibold text-slate-700 hover:text-slate-900">
-              SyncPads
-            </Link>
-          </span>
-          <span className="flex gap-4">
-            <Link href="/privacy" className="hover:text-slate-900">Privacy</Link>
-            <Link href="/terms" className="hover:text-slate-900">Terms</Link>
-            <a
-              href={`mailto:${LEGAL.contactEmail}?subject=${encodeURIComponent("Report a shared page")}&body=${encodeURIComponent(`Shared page: /s/${token}\n\nWhat's wrong with it:\n`)}`}
-              className="hover:text-slate-900"
-            >
-              Report this page
-            </a>
-          </span>
-        </div>
-      </footer>
+      {/* "Made with SyncPads" badge in place of a footer. Plain <a>: a full page load to the landing page. */}
+      <a
+        href="/"
+        className="fixed bottom-4 right-4 z-20 inline-flex items-center gap-2 rounded-full border border-slate-900/[0.08] bg-white/95 py-1.5 pl-1.5 pr-3.5 text-sm font-semibold text-slate-800 shadow-lg shadow-slate-900/10 backdrop-blur transition hover:-translate-y-0.5 hover:shadow-xl"
+      >
+        <LogoMark size={24} />
+        Made with SyncPads
+      </a>
     </div>
   );
 }
