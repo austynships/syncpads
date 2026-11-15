@@ -83,7 +83,7 @@ export default async function SharedPageView({ params }: Props) {
 
       <main className="mx-auto w-full max-w-6xl flex-1 px-4 pb-24 pt-10 sm:px-6">
         <div className={`mb-8 ${panel}`}>
-          <p className="text-sm font-semibold uppercase tracking-wider text-sync-600">Shared page</p>
+          <p className="text-sm font-semibold uppercase tracking-wider text-sync-600 dark:text-sync-400">Shared page</p>
           <h1 className="mt-2 text-balance text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl dark:text-white">{page.name}</h1>
           <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
             Shared by {page.ownerName} · {plural(page.links, "link", "links")}
