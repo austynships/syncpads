@@ -96,6 +96,17 @@ export default function SharingPage() {
         </p>
       </Prose>
 
+      <H2 id="notifications">Notifications</H2>
+      <Prose>
+        <p>
+          The bell in your top bar keeps everyone on a shared page in the loop. You get a notification when someone joins
+          your page, adds links or notes to a page you share, or leaves it, and when you&apos;re removed from a page or its
+          owner stops sharing or deletes it. A burst of changes arrives as one notification, such as &ldquo;Eddie added 4
+          links and a note&rdquo;, and clicking it opens the page.
+        </p>
+        <p>The bell also shows news about SyncPads, and suggestions your AI leaves in your Agent Inbox.</p>
+      </Prose>
+
       <H2 id="save-a-copy">Saving a copy</H2>
       <Prose>
         <p>

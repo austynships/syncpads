@@ -118,3 +118,9 @@ export const IconExternal = (p: IconProps) => (
 export const IconUsers = (p: IconProps) => (
   <Icon {...p}><circle cx="9" cy="8" r="3.25" /><path d="M3 19.5c.6-3.2 3-5 6-5s5.4 1.8 6 5" /><path d="M15.5 4.9a3.25 3.25 0 010 6.2M17.5 14.7c1.9.6 3.1 2.2 3.5 4.8" /></Icon>
 );
+export const IconBell = (p: IconProps) => (
+  <Icon {...p}><path d="M6 9.5a6 6 0 0112 0c0 4.5 1.5 6 2 6.5H4c.5-.5 2-2 2-6.5z" /><path d="M10 19.5a2 2 0 004 0" /></Icon>
+);
+export const IconMegaphone = (p: IconProps) => (
+  <Icon {...p}><path d="M4 10v4a1 1 0 001 1h2l7 4V5L7 9H5a1 1 0 00-1 1z" /><path d="M17.5 9a4 4 0 010 6" /><path d="M8 15l1 5" /></Icon>
+);

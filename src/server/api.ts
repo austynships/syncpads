@@ -119,6 +119,19 @@ export const schemas = {
   reorderPages: z.object({ ids }),
   sharePage: z.object({ includeNotes: z.boolean().optional(), role: z.enum(["view", "edit"]).optional() }),
   removeEditor: z.object({ userId: id }),
+  markRead: z.object({ ids: z.array(z.string().max(40)).max(100).optional(), all: z.boolean().optional() }),
+  announcement: z.object({
+    title: z.string().trim().min(1, "Add a title.").max(120, "Keep the title under 120 characters."),
+    body: z.string().trim().max(1000, "Keep the message under 1,000 characters.").nullish(),
+    // A path on this site (/docs/...) or a full https address.
+    link: z
+      .string()
+      .trim()
+      .max(512)
+      .refine((v) => v === "" || (v.startsWith("/") && !v.startsWith("//")) || v.startsWith("https://"), "The link must start with / or https://")
+      .nullish(),
+    audience: z.enum(["all", "free", "pro"]),
+  }),
 
   createGroup: z.object({
     pageId: id,

@@ -2,13 +2,14 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { IconBot, IconGrid, IconLayers, IconSliders, IconUser } from "@/components/icons";
+import { IconBot, IconGrid, IconLayers, IconMegaphone, IconSliders, IconUser } from "@/components/icons";
 
 const ITEMS = [
   { href: "/admin", label: "Overview", Icon: IconGrid },
   { href: "/admin/users", label: "Users", Icon: IconUser },
   { href: "/admin/agents", label: "Agent Connects", Icon: IconBot },
   { href: "/admin/plans", label: "Plans", Icon: IconLayers },
+  { href: "/admin/announcements", label: "Announcements", Icon: IconMegaphone },
   { href: "/admin/settings", label: "Settings", Icon: IconSliders },
 ];
 

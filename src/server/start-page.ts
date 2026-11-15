@@ -22,6 +22,7 @@ import { planImport, type BookmarkNode, type ImportLink } from "@/lib/bookmarks"
 import { FILE_FORMAT, FILE_VERSION, countFile, type FilePage, type SyncPadsFile } from "@/lib/syncpads-file";
 import { aiAvailability } from "./enrichment/ai";
 import { enqueue, requeueForAi } from "./enrichment/queue";
+import { notifyLostAccess, notifyPageActivity } from "./notifications";
 import { assertCanAddLinks, assertCanAddPages } from "./plans";
 
 type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
@@ -430,6 +431,8 @@ export function deletePage(userId: string, pageId: string) {
   return write(userId, async (tx, touch) => {
     await assertPage(tx, userId, pageId); // only the owner deletes a page; editors leave it instead
     await touch(pageId); // before deleting, while its editors are still known
+    const editors = await tx.select({ id: pageMembers.userId }).from(pageMembers).where(eq(pageMembers.pageId, pageId));
+    await notifyLostAccess(tx, userId, pageId, editors.map((e) => e.id), "deleted");
     const [{ count }] = await tx
       .select({ count: sql<number>`count(*)` })
       .from(pages)
@@ -494,6 +497,7 @@ export function createGroup(
     await assertCanAddLinks(ownerId, links.length, tx);
     await enqueue(tx, ownerId, await insertLinks(tx, ownerId, id, links, "user"));
     await touch(input.pageId);
+    if (links.length) await notifyPageActivity(tx, userId, input.pageId, { links: links.length });
     return { id, added: links.length, skipped: (input.links?.length ?? 0) - links.length };
   });
 }
@@ -784,6 +788,7 @@ export function createItem(userId: string, input: ItemInput) {
     });
     await enqueue(tx, ownerId, [id]);
     await touch(pageId);
+    await notifyPageActivity(tx, userId, pageId, input.type === "link" ? { links: 1 } : { notes: 1 });
     const [row] = await tx.select().from(items).where(eq(items.id, id));
     const item: ItemDTO = {
       id,

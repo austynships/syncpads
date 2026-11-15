@@ -499,3 +499,60 @@ export const favicons = mysqlTable("favicons", {
   data: mediumblob("data"),
   fetchedAt: datetime("fetched_at", { mode: "date", fsp: 3 }).notNull(),
 });
+
+// ---------- Notifications ----------
+
+/**
+ * A notification for one person: someone joined or changed a page they share,
+ * they were removed from a page, an AI suggested something, and so on.
+ * Bursts are combined: repeated events of the same kind from the same person
+ * on the same page update one unread row (`count`, `meta`) instead of adding more.
+ */
+export const notifications = mysqlTable(
+  "notifications",
+  {
+    id: id(),
+    userId: userId(),
+    type: varchar("type", { length: 40 }).notNull(),
+    title: varchar("title", { length: 255 }).notNull(),
+    body: text("body"),
+    // Where clicking it goes: a path on this site, such as /app?page=<id>.
+    link: varchar("link", { length: 512 }),
+    pageId: varchar("page_id", { length: 36 }).references(() => pages.id, { onDelete: "set null" }),
+    actorId: varchar("actor_id", { length: 36 }).references(() => users.id, { onDelete: "set null" }),
+    // For combined notifications: how many events, and per-kind counts.
+    count: int("count").notNull().default(1),
+    meta: json<Record<string, number>>("meta"),
+    readAt: datetime("read_at", { mode: "date", fsp: 3 }),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [index("notifications_user_created_idx").on(t.userId, t.createdAt)],
+);
+
+/**
+ * Announcements an admin sends to everyone (or only Free or Pro users), such as
+ * a new feature. One row per announcement; who has read it is in announcement_reads.
+ * Users see announcements sent after they signed up.
+ */
+export const announcements = mysqlTable("announcements", {
+  id: id(),
+  title: varchar("title", { length: 120 }).notNull(),
+  body: text("body"),
+  link: varchar("link", { length: 512 }),
+  audience: mysqlEnum("audience", ["all", "free", "pro"]).notNull().default("all"),
+  createdBy: varchar("created_by", { length: 36 }).references(() => users.id, { onDelete: "set null" }),
+  createdAt: createdAt(),
+});
+
+export const announcementReads = mysqlTable(
+  "announcement_reads",
+  {
+    announcementId: varchar("announcement_id", { length: 36 })
+      .notNull()
+      .references(() => announcements.id, { onDelete: "cascade" }),
+    userId: userId(),
+    readAt: createdAt(),
+  },
+  (t) => [primaryKey({ columns: [t.announcementId, t.userId] }), index("announcement_reads_user_id_idx").on(t.userId)],
+);

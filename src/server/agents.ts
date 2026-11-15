@@ -19,6 +19,7 @@ import { enqueue } from "./enrichment/queue";
 import { sanitizeNoteHtml } from "@/lib/sanitize";
 import { revokeAgentTokens, type AgentContext } from "./oauth";
 import { redactSecrets, redactUrl } from "./redact";
+import { notifyAgentSuggestion } from "./notifications";
 import { search } from "./search";
 
 /** A plain message the agent can act on (returned as a tool error). */
@@ -287,6 +288,7 @@ export async function toolAddLink(
     await enqueue(tx, ctx.userId, [itemId]);
   });
 
+  if (status === "inbox") await notifyAgentSuggestion(db, ctx.userId, ctx.agentName, { links: 1 });
   await logActivity(ctx, "add_link", {
     itemId,
     before: null,
@@ -414,6 +416,7 @@ export async function toolSaveContext(ctx: AgentContext, input: SaveContextInput
     await enqueue(tx, ctx.userId, [itemId]); // indexed for search like any note
   });
 
+  if (status === "inbox") await notifyAgentSuggestion(db, ctx.userId, ctx.agentName, { notes: 1 });
   await logActivity(ctx, "save_context", {
     itemId,
     after: { title: cleaned.title, status, pageId: page.id, page: page.name, groupId, links: links.length, secretsRemoved: removed },

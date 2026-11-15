@@ -17,6 +17,7 @@ import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { groups, items, pageMembers, pages, userSettings, users, type Wallpaper } from "@/db/schema";
 import { FILE_FORMAT, FILE_VERSION, type SyncPadsFile } from "@/lib/syncpads-file";
+import { notifyJoined, notifyLeft, notifyLostAccess } from "./notifications";
 import { InvalidInputError, NotFoundError, importSyncPadsFile, nextPagePosition, pageAccess, write } from "./start-page";
 
 export type ShareRole = "view" | "edit";
@@ -54,6 +55,8 @@ export async function sharePage(userId: string, pageId: string, input: { include
   return write(userId, async (tx, touch) => {
     if (role === "view") {
       await touch(pageId); // editors lose the page: refresh their workspaces
+      const editors = await tx.select({ id: pageMembers.userId }).from(pageMembers).where(eq(pageMembers.pageId, pageId));
+      await notifyLostAccess(tx, userId, pageId, editors.map((e) => e.id), "view_only");
       await tx.delete(pageMembers).where(eq(pageMembers.pageId, pageId));
     }
     await tx
@@ -76,6 +79,8 @@ export async function unsharePage(userId: string, pageId: string) {
   await ownedPage(userId, pageId);
   return write(userId, async (tx, touch) => {
     await touch(pageId);
+    const editors = await tx.select({ id: pageMembers.userId }).from(pageMembers).where(eq(pageMembers.pageId, pageId));
+    await notifyLostAccess(tx, userId, pageId, editors.map((e) => e.id), "unshared");
     await tx.delete(pageMembers).where(eq(pageMembers.pageId, pageId));
     await tx
       .update(pages)
@@ -108,6 +113,7 @@ export async function joinSharedPage(userId: string, token: string) {
     if (existing) return { pageId: page.id, joined: false };
     await tx.insert(pageMembers).values({ pageId: page.id, userId, position: await nextPagePosition(tx, userId) });
     await touch(page.id); // the owner sees one more editor
+    await notifyJoined(tx, userId, page.id, page.ownerId);
     return { pageId: page.id, joined: true };
   });
 }
@@ -119,6 +125,7 @@ export async function leaveSharedPage(userId: string, pageId: string) {
     if (access.role === "owner") throw new InvalidInputError("You own this page. To stop sharing it, use Share → Stop sharing.");
     await tx.delete(pageMembers).where(and(eq(pageMembers.pageId, pageId), eq(pageMembers.userId, userId)));
     await touch(pageId);
+    await notifyLeft(tx, userId, pageId, access.ownerId);
     return {};
   });
 }
@@ -147,7 +154,10 @@ export async function removeEditor(ownerId: string, pageId: string, editorId: st
   await ownedPage(ownerId, pageId);
   return write(ownerId, async (tx, touch) => {
     await touch(pageId);
-    await tx.delete(pageMembers).where(and(eq(pageMembers.pageId, pageId), eq(pageMembers.userId, editorId)));
+    const removed = await tx.delete(pageMembers).where(and(eq(pageMembers.pageId, pageId), eq(pageMembers.userId, editorId)));
+    if ((removed as unknown as [{ affectedRows: number }])[0].affectedRows > 0) {
+      await notifyLostAccess(tx, ownerId, pageId, [editorId], "removed");
+    }
     return {};
   });
 }

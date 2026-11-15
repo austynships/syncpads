@@ -15,6 +15,7 @@ import { InboxPanel } from "./inbox-panel";
 import { PageTabs } from "./page-tabs";
 import { SearchBar } from "./search-bar";
 import { SettingsPanel } from "./settings-panel";
+import { NotificationsBell } from "./notifications-bell";
 import { ShareDialog } from "./share-dialog";
 import { mapGroup, mapItem, mapPage, removeItem, reorderBy, setPageGroups } from "./state-ops";
 import { clearCache, useStartPage } from "./use-start-page";
@@ -53,6 +54,16 @@ export function StartPage({ userId, email, admin = false }: { userId: string; em
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [inboxOpen, setInboxOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
+
+  // /app?inbox=1 (from an AI-suggestion notification) opens the Agent Inbox.
+  useEffect(() => {
+    try {
+      if (new URLSearchParams(window.location.search).has("inbox")) {
+        setInboxOpen(true);
+        window.history.replaceState(null, "", window.location.pathname);
+      }
+    } catch {}
+  }, []);
 
   const page = state?.pages.find((p) => p.id === pageId) ?? state?.pages[0];
   const selectPage = (id: string) => {
@@ -267,6 +278,13 @@ export function StartPage({ userId, email, admin = false }: { userId: string; em
             <IconShare size={17} />
             <span className="hidden sm:inline">{page.share ? "Shared" : "Share"}</span>
           </button>
+          <NotificationsBell
+            onOpenPage={(id) => {
+              // A page from a notification may be new to this tab (just shared with you): reload first.
+              void refresh().then(() => selectPage(id));
+            }}
+            onOpenInbox={() => setInboxOpen(true)}
+          />
           <InboxButton count={state.inbox?.length ?? 0} onClick={() => setInboxOpen(true)} />
           <button type="button" className="icon-btn" onClick={() => setSettingsOpen(true)} aria-label="Settings" title="Settings">
             <IconSliders size={18} />

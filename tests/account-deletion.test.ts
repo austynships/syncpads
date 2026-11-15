@@ -10,7 +10,8 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 const url = process.env.TEST_DATABASE_URL;
 
 // Tables that intentionally have no user_id.
-const NOT_USER_OWNED = new Set(["users", "verifications", "favicons", "oauth_clients", "__drizzle_migrations"]);
+// announcements: site-wide messages from an admin, not personal data (created_by is set to null if that admin is deleted).
+const NOT_USER_OWNED = new Set(["users", "verifications", "favicons", "oauth_clients", "announcements", "__drizzle_migrations"]);
 
 describe.skipIf(!url)("account deletion", () => {
   let mod: typeof import("@/db");
@@ -89,6 +90,11 @@ describe.skipIf(!url)("account deletion", () => {
     await db.insert(s.agentScopes).values({ agentId, pageId, userId });
     // Membership of a shared page (the user editing a page; here their own, which is enough to test the cascade).
     await db.insert(s.pageMembers).values({ pageId, userId });
+    await db.insert(s.notifications).values({ userId, type: "page_joined", title: "x" });
+    const announcementId = crypto.randomUUID();
+    // Dated long ago so no other test user is in its audience.
+    await db.insert(s.announcements).values({ id: announcementId, title: "x", createdAt: new Date("2000-01-01") });
+    await db.insert(s.announcementReads).values({ announcementId, userId });
     await db.insert(s.activityLog).values({ userId, agentId, itemId, action: "add_link", after: { url: "x" } });
     // Phase 5: an OAuth client is shared (not user data), but codes and tokens belong to the user.
     const clientId = `test_${userId.slice(0, 8)}`;
