@@ -82,7 +82,7 @@ export default function SignupPage() {
       title={savingShared ? "Create your free account" : "Create your workspace"}
       subtitle={
         savingShared
-          ? "Then save your copy of the shared page. It takes a minute."
+          ? "Then you'll go straight back to the shared page. It takes a minute."
           : "Bring your links, tools and notes together in one place."
       }
       footer={

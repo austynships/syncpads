@@ -3,9 +3,9 @@
  * user's id and only ever touches that user's rows.
  * Every write bumps user_settings.revision in the same transaction (SP-6 sync).
  */
-import { and, asc, eq, inArray, max, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, isNotNull, max, or, sql } from "drizzle-orm";
 import { db, type Db } from "@/db";
-import { activityLog, agents, groups, itemEnrichment, items, pages, userSettings, type Wallpaper } from "@/db/schema";
+import { activityLog, agents, groups, itemEnrichment, items, pageMembers, pages, userSettings, users, type Wallpaper } from "@/db/schema";
 import { sanitizeNoteHtml } from "@/lib/sanitize";
 import type {
   GroupDTO,
@@ -67,12 +67,66 @@ async function assertGroup(tx: Tx, userId: string, groupId: string) {
   if (!row) throw new NotFoundError("Group");
 }
 
-/** Run a write in a transaction and return its result plus the new revision. */
-/** Runs a write in a transaction and bumps the user's revision, so other tabs and devices pick it up. */
-export async function write<T extends object>(userId: string, fn: (tx: Tx) => Promise<T>) {
+// ---------- shared pages: who may edit what ----------
+
+/**
+ * A page's rows (and its groups and items) belong to its owner. Editors who
+ * joined through an edit link (page_members) can change them too. Each write
+ * resolves the owner first, so plan limits and smart features follow the owner.
+ */
+export type Access = { ownerId: string; pageId: string; role: "owner" | "editor" };
+
+/** The actor's access to a page, or NotFound (same answer whether it doesn't exist or isn't theirs). */
+export async function pageAccess(tx: Tx | Db, actorId: string, pageId: string, what = "Page"): Promise<Access> {
+  const [row] = await tx
+    .select({ ownerId: pages.userId, member: pageMembers.userId })
+    .from(pages)
+    .leftJoin(pageMembers, and(eq(pageMembers.pageId, pages.id), eq(pageMembers.userId, actorId)))
+    .where(and(eq(pages.id, pageId), or(eq(pages.userId, actorId), isNotNull(pageMembers.userId))));
+  if (!row) throw new NotFoundError(what);
+  return { ownerId: row.ownerId, pageId, role: row.ownerId === actorId ? "owner" : "editor" };
+}
+
+async function groupAccess(tx: Tx, actorId: string, groupId: string) {
+  const [g] = await tx.select({ pageId: groups.pageId }).from(groups).where(eq(groups.id, groupId));
+  if (!g) throw new NotFoundError("Group");
+  return pageAccess(tx, actorId, g.pageId, "Group");
+}
+
+async function itemAccess(tx: Tx, actorId: string, itemId: string) {
+  const [it] = await tx
+    .select({ type: items.type, status: items.status, pageId: groups.pageId })
+    .from(items)
+    .innerJoin(groups, eq(groups.id, items.groupId))
+    .where(eq(items.id, itemId));
+  if (!it) throw new NotFoundError("Item");
+  return { ...(await pageAccess(tx, actorId, it.pageId, "Item")), type: it.type, status: it.status };
+}
+
+/** Everyone who sees a page: its owner and its editors. */
+async function pageAudience(tx: Tx, pageId: string): Promise<string[]> {
+  const [owner] = await tx.select({ id: pages.userId }).from(pages).where(eq(pages.id, pageId));
+  const members = await tx.select({ id: pageMembers.userId }).from(pageMembers).where(eq(pageMembers.pageId, pageId));
+  return [...(owner ? [owner.id] : []), ...members.map((m) => m.id)];
+}
+
+/** Lets a write mark pages it changed, so everyone who sees them refreshes. */
+export type Touch = (pageId: string) => Promise<void>;
+
+/**
+ * Runs a write in a transaction and bumps the user's revision, so other tabs
+ * and devices pick it up. Pages passed to `touch` also bump the revision of
+ * everyone else who sees them (the owner and editors of a shared page).
+ */
+export async function write<T extends object>(userId: string, fn: (tx: Tx, touch: Touch) => Promise<T>) {
   await ensureUserSetup(userId);
   return db.transaction(async (tx) => {
-    const result = await fn(tx);
+    const others = new Set<string>();
+    const touch: Touch = async (pageId) => {
+      for (const id of await pageAudience(tx, pageId)) if (id !== userId) others.add(id);
+    };
+    const result = await fn(tx, touch);
+    for (const id of others) await bumpRevision(tx, id);
     const revision = await bumpRevision(tx, userId);
     return { ...result, revision };
   });
@@ -123,20 +177,51 @@ export async function getState(userId: string): Promise<StateDTO> {
   await ensureUserSetup(userId);
 
   const [settingsRow] = await db.select().from(userSettings).where(eq(userSettings.userId, userId));
-  const pageRows = await db.select().from(pages).where(eq(pages.userId, userId)).orderBy(asc(pages.position));
-  const groupRows = await db.select().from(groups).where(eq(groups.userId, userId)).orderBy(asc(groups.position));
-  const itemRows = await db
-    .select()
-    .from(items)
-    .where(and(eq(items.userId, userId), eq(items.status, "active")))
-    .orderBy(asc(items.position));
-  const agentNames = new Map(
-    (await db.select({ id: agents.id, name: agents.name }).from(agents).where(eq(agents.userId, userId))).map((a) => [a.id, a.name]),
+  const ownPages = await db.select().from(pages).where(eq(pages.userId, userId)).orderBy(asc(pages.position));
+  // Pages other people shared with this user through an edit link.
+  const joined = await db
+    .select({ page: pages, position: pageMembers.position, ownerName: users.name })
+    .from(pageMembers)
+    .innerJoin(pages, eq(pages.id, pageMembers.pageId))
+    .innerJoin(users, eq(users.id, pages.userId))
+    .where(eq(pageMembers.userId, userId));
+  const joinedIds = joined.map((j) => j.page.id);
+  const ownIds = ownPages.map((p) => p.id);
+  // Editors per own shared page, for the owner's share dialog.
+  const editorCounts = new Map(
+    (
+      await db
+        .select({ pageId: pageMembers.pageId, n: sql<number>`COUNT(*)` })
+        .from(pageMembers)
+        .innerJoin(pages, eq(pages.id, pageMembers.pageId))
+        .where(eq(pages.userId, userId))
+        .groupBy(pageMembers.pageId)
+    ).map((r) => [r.pageId, Number(r.n)]),
   );
-  const enrichmentRows = await db
-    .select({ itemId: itemEnrichment.itemId, summary: itemEnrichment.summary, tags: itemEnrichment.tags })
-    .from(itemEnrichment)
-    .where(eq(itemEnrichment.userId, userId));
+
+  const allPageIds = [...ownIds, ...joinedIds];
+  const groupRows = allPageIds.length
+    ? await db.select().from(groups).where(inArray(groups.pageId, allPageIds)).orderBy(asc(groups.position))
+    : [];
+  const itemRows = groupRows.length
+    ? await db
+        .select()
+        .from(items)
+        .where(and(inArray(items.groupId, groupRows.map((g) => g.id)), eq(items.status, "active")))
+        .orderBy(asc(items.position))
+    : [];
+  const agentIds = [...new Set(itemRows.map((i) => i.createdByAgentId).filter((id): id is string => Boolean(id)))];
+  const agentNames = new Map(
+    agentIds.length
+      ? (await db.select({ id: agents.id, name: agents.name }).from(agents).where(inArray(agents.id, agentIds))).map((a) => [a.id, a.name])
+      : [],
+  );
+  const enrichmentRows = itemRows.length
+    ? await db
+        .select({ itemId: itemEnrichment.itemId, summary: itemEnrichment.summary, tags: itemEnrichment.tags })
+        .from(itemEnrichment)
+        .where(inArray(itemEnrichment.itemId, itemRows.map((i) => i.id)))
+    : [];
   const enrichment = new Map(enrichmentRows.map((e) => [e.itemId, e]));
 
   const itemsByGroup = new Map<string, ItemDTO[]>();
@@ -172,17 +257,37 @@ export async function getState(userId: string): Promise<StateDTO> {
       aiEnabled: settingsRow?.aiEnabled ?? false,
       aiAvailable: aiAvailability(),
     },
-    pages: pageRows.map(
-      (p): PageDTO => ({
-        id: p.id,
-        name: p.name,
-        layout: (p.layout as PageLayout) ?? "auto",
-        position: p.position,
-        hiddenFromAgents: p.hiddenFromAgents,
-        share: p.shareToken ? { token: p.shareToken, includeNotes: p.shareNotes, copies: p.shareCopies } : null,
-        groups: groupsByPage.get(p.id) ?? [],
-      }),
-    ),
+    pages: [
+      ...ownPages.map(
+        (p): PageDTO => ({
+          id: p.id,
+          name: p.name,
+          layout: (p.layout as PageLayout) ?? "auto",
+          position: p.position,
+          hiddenFromAgents: p.hiddenFromAgents,
+          access: "owner",
+          ownerName: null,
+          share: p.shareToken
+            ? { token: p.shareToken, role: p.shareRole, includeNotes: p.shareNotes, copies: p.shareCopies, editors: editorCounts.get(p.id) ?? 0 }
+            : null,
+          groups: groupsByPage.get(p.id) ?? [],
+        }),
+      ),
+      ...joined.map(
+        ({ page: p, position, ownerName }): PageDTO => ({
+          id: p.id,
+          name: p.name,
+          layout: (p.layout as PageLayout) ?? "auto",
+          position,
+          hiddenFromAgents: p.hiddenFromAgents,
+          access: "editor",
+          ownerName: ownerName.trim().split(/\s+/)[0] || "Someone",
+          // Editors can pass the edit link on, but only the owner changes sharing.
+          share: p.shareToken ? { token: p.shareToken, role: p.shareRole, includeNotes: p.shareNotes, copies: p.shareCopies, editors: 0 } : null,
+          groups: groupsByPage.get(p.id) ?? [],
+        }),
+      ),
+    ].sort((a, b) => a.position - b.position),
   };
 }
 
@@ -285,10 +390,17 @@ export function updateSettings(
 
 // ---------- pages ----------
 
+/** The next tab position after the user's own pages and the pages shared with them. */
+export async function nextPagePosition(tx: Tx | Db, userId: string) {
+  const [{ own }] = await tx.select({ own: max(pages.position) }).from(pages).where(eq(pages.userId, userId));
+  const [{ joined }] = await tx.select({ joined: max(pageMembers.position) }).from(pageMembers).where(eq(pageMembers.userId, userId));
+  return Math.max(own ?? -1, joined ?? -1) + 1;
+}
+
 export function createPage(userId: string, input: { name: string }) {
   return write(userId, async (tx) => {
     await assertCanAddPages(userId, 1, tx);
-    const [{ value }] = await tx.select({ value: max(pages.position) }).from(pages).where(eq(pages.userId, userId));
+    const value = (await nextPagePosition(tx, userId)) - 1;
     const id = crypto.randomUUID();
     await tx.insert(pages).values({ id, userId, name: input.name, position: (value ?? -1) + 1 });
     // Every page starts with one group so there's somewhere to add links.
@@ -302,16 +414,22 @@ export function updatePage(
   pageId: string,
   input: { name?: string; layout?: PageLayout; hiddenFromAgents?: boolean },
 ) {
-  return write(userId, async (tx) => {
-    const result = await tx.update(pages).set(input).where(and(eq(pages.id, pageId), eq(pages.userId, userId)));
-    if (affected(result) === 0) await assertPage(tx, userId, pageId); // 0 rows can also mean "no change"
+  return write(userId, async (tx, touch) => {
+    const access = await pageAccess(tx, userId, pageId);
+    // Hiding a page from AI is the owner's privacy choice; editors can rename and change columns.
+    if (access.role !== "owner" && input.hiddenFromAgents !== undefined) {
+      throw new InvalidInputError("Only the page's owner can change that.");
+    }
+    await tx.update(pages).set(input).where(eq(pages.id, pageId));
+    await touch(pageId);
     return {};
   });
 }
 
 export function deletePage(userId: string, pageId: string) {
-  return write(userId, async (tx) => {
-    await assertPage(tx, userId, pageId);
+  return write(userId, async (tx, touch) => {
+    await assertPage(tx, userId, pageId); // only the owner deletes a page; editors leave it instead
+    await touch(pageId); // before deleting, while its editors are still known
     const [{ count }] = await tx
       .select({ count: sql<number>`count(*)` })
       .from(pages)
@@ -322,15 +440,24 @@ export function deletePage(userId: string, pageId: string) {
   });
 }
 
+/** Sets the user's tab order, across their own pages and pages shared with them. */
 export function reorderPages(userId: string, ids: string[]) {
   return write(userId, async (tx) => {
-    const owned = await tx
-      .select({ id: pages.id })
-      .from(pages)
-      .where(and(eq(pages.userId, userId), inArray(pages.id, ids)));
-    if (owned.length !== new Set(ids).size) throw new NotFoundError("Page");
+    const owned = new Set(
+      (await tx.select({ id: pages.id }).from(pages).where(and(eq(pages.userId, userId), inArray(pages.id, ids)))).map((r) => r.id),
+    );
+    const joined = new Set(
+      (
+        await tx
+          .select({ id: pageMembers.pageId })
+          .from(pageMembers)
+          .where(and(eq(pageMembers.userId, userId), inArray(pageMembers.pageId, ids)))
+      ).map((r) => r.id),
+    );
+    if (owned.size + joined.size !== new Set(ids).size) throw new NotFoundError("Page");
     for (const [position, id] of ids.entries()) {
-      await tx.update(pages).set({ position }).where(and(eq(pages.id, id), eq(pages.userId, userId)));
+      if (owned.has(id)) await tx.update(pages).set({ position }).where(and(eq(pages.id, id), eq(pages.userId, userId)));
+      else await tx.update(pageMembers).set({ position }).where(and(eq(pageMembers.pageId, id), eq(pageMembers.userId, userId)));
     }
     return {};
   });
@@ -346,16 +473,13 @@ export function createGroup(
   userId: string,
   input: { pageId: string; name: string; layout?: GroupLayout; links?: { url: string; title?: string | null }[] },
 ) {
-  return write(userId, async (tx) => {
-    await assertPage(tx, userId, input.pageId);
-    const [{ value }] = await tx
-      .select({ value: max(groups.position) })
-      .from(groups)
-      .where(and(eq(groups.userId, userId), eq(groups.pageId, input.pageId)));
+  return write(userId, async (tx, touch) => {
+    const { ownerId } = await pageAccess(tx, userId, input.pageId);
+    const [{ value }] = await tx.select({ value: max(groups.position) }).from(groups).where(eq(groups.pageId, input.pageId));
     const id = crypto.randomUUID();
     await tx.insert(groups).values({
       id,
-      userId,
+      userId: ownerId,
       pageId: input.pageId,
       name: input.name,
       layout: input.layout ?? "list",
@@ -367,8 +491,9 @@ export function createGroup(
       const url = normalizeUrl(link.url);
       if (url) links.push({ url, title: link.title?.trim().slice(0, 512) || null });
     }
-    await assertCanAddLinks(userId, links.length, tx);
-    await enqueue(tx, userId, await insertLinks(tx, userId, id, links, "user"));
+    await assertCanAddLinks(ownerId, links.length, tx);
+    await enqueue(tx, ownerId, await insertLinks(tx, ownerId, id, links, "user"));
+    await touch(input.pageId);
     return { id, added: links.length, skipped: (input.links?.length ?? 0) - links.length };
   });
 }
@@ -414,8 +539,7 @@ export async function importBookmarks(userId: string, tree: BookmarkNode[]) {
   return write(userId, async (tx) => {
     await assertCanAddPages(userId, plan.pages.length, tx);
     await assertCanAddLinks(userId, plan.linkCount, tx);
-    const [{ value }] = await tx.select({ value: max(pages.position) }).from(pages).where(eq(pages.userId, userId));
-    let pagePosition = (value ?? -1) + 1;
+    let pagePosition = await nextPagePosition(tx, userId);
     const pageIds: string[] = [];
 
     for (const page of plan.pages) {
@@ -538,8 +662,7 @@ export async function importSyncPadsFile(userId: string, file: SyncPadsFile) {
     const links = prepared.reduce((n, p) => n + p.groups.reduce((m, g) => m + g.items.filter((i) => i.type === "link").length, 0), 0);
     await assertCanAddLinks(userId, links, tx);
 
-    const [{ value }] = await tx.select({ value: max(pages.position) }).from(pages).where(eq(pages.userId, userId));
-    let pagePosition = (value ?? -1) + 1;
+    let pagePosition = await nextPagePosition(tx, userId);
     const pageIds: string[] = [];
     const linkIds: string[] = [];
 
@@ -573,33 +696,40 @@ export async function importSyncPadsFile(userId: string, file: SyncPadsFile) {
 }
 
 export function updateGroup(userId: string, groupId: string, input: { name?: string; layout?: GroupLayout }) {
-  return write(userId, async (tx) => {
-    const result = await tx.update(groups).set(input).where(and(eq(groups.id, groupId), eq(groups.userId, userId)));
-    if (affected(result) === 0) await assertGroup(tx, userId, groupId);
+  return write(userId, async (tx, touch) => {
+    const { pageId } = await groupAccess(tx, userId, groupId);
+    await tx.update(groups).set(input).where(eq(groups.id, groupId));
+    await touch(pageId);
     return {};
   });
 }
 
 export function deleteGroup(userId: string, groupId: string) {
-  return write(userId, async (tx) => {
-    await assertGroup(tx, userId, groupId);
-    await tx.delete(groups).where(and(eq(groups.id, groupId), eq(groups.userId, userId)));
+  return write(userId, async (tx, touch) => {
+    const { pageId } = await groupAccess(tx, userId, groupId);
+    await tx.delete(groups).where(eq(groups.id, groupId));
+    await touch(pageId);
     return {};
   });
 }
 
 /** Sets the order of groups on a page. Can also move groups onto this page. */
 export function reorderGroups(userId: string, pageId: string, ids: string[]) {
-  return write(userId, async (tx) => {
-    await assertPage(tx, userId, pageId);
-    const owned = await tx
-      .select({ id: groups.id })
-      .from(groups)
-      .where(and(eq(groups.userId, userId), inArray(groups.id, ids)));
-    if (owned.length !== new Set(ids).size) throw new NotFoundError("Group");
-    for (const [position, id] of ids.entries()) {
-      await tx.update(groups).set({ position, pageId }).where(and(eq(groups.id, id), eq(groups.userId, userId)));
+  return write(userId, async (tx, touch) => {
+    const target = await pageAccess(tx, userId, pageId);
+    const rows = ids.length ? await tx.select({ id: groups.id, pageId: groups.pageId }).from(groups).where(inArray(groups.id, ids)) : [];
+    if (rows.length !== new Set(ids).size) throw new NotFoundError("Group");
+    // Groups can move between pages of the same owner that this user can edit,
+    // never into or out of someone else's page.
+    const sources = new Set(rows.map((r) => r.pageId));
+    for (const source of sources) {
+      const access = await pageAccess(tx, userId, source, "Group");
+      if (access.ownerId !== target.ownerId) throw new InvalidInputError("Groups can't move between your pages and a shared page.");
     }
+    for (const [position, id] of ids.entries()) {
+      await tx.update(groups).set({ position, pageId }).where(eq(groups.id, id));
+    }
+    for (const page of new Set([pageId, ...sources])) await touch(page);
     return {};
   });
 }
@@ -631,20 +761,20 @@ function cleanItemFields(input: { type?: "link" | "note"; url?: string | null; t
 }
 
 export function createItem(userId: string, input: ItemInput) {
-  return write(userId, async (tx) => {
-    await assertGroup(tx, userId, input.groupId);
-    if (input.type === "link") await assertCanAddLinks(userId, 1, tx);
+  return write(userId, async (tx, touch) => {
+    const { ownerId, pageId } = await groupAccess(tx, userId, input.groupId);
+    if (input.type === "link") await assertCanAddLinks(ownerId, 1, tx);
     const fields = cleanItemFields(input);
     if (input.type === "link" && !fields.url) throw new InvalidInputError("A link needs a web address.");
 
     const [{ value }] = await tx
       .select({ value: max(items.position) })
       .from(items)
-      .where(and(eq(items.userId, userId), eq(items.groupId, input.groupId)));
+      .where(eq(items.groupId, input.groupId));
     const id = crypto.randomUUID();
     await tx.insert(items).values({
       id,
-      userId,
+      userId: ownerId,
       groupId: input.groupId,
       type: input.type,
       ...fields,
@@ -652,7 +782,8 @@ export function createItem(userId: string, input: ItemInput) {
       source: "user",
       status: "active",
     });
-    await enqueue(tx, userId, [id]);
+    await enqueue(tx, ownerId, [id]);
+    await touch(pageId);
     const [row] = await tx.select().from(items).where(eq(items.id, id));
     const item: ItemDTO = {
       id,
@@ -671,19 +802,16 @@ export function updateItem(
   itemId: string,
   input: { url?: string | null; title?: string | null; noteBody?: string | null },
 ) {
-  return write(userId, async (tx) => {
-    const [existing] = await tx
-      .select({ type: items.type })
-      .from(items)
-      .where(and(eq(items.id, itemId), eq(items.userId, userId)));
-    if (!existing) throw new NotFoundError("Item");
+  return write(userId, async (tx, touch) => {
+    const existing = await itemAccess(tx, userId, itemId);
     const fields = cleanItemFields(input);
     if (existing.type === "link" && fields.url === null) throw new InvalidInputError("A link needs a web address.");
     if (Object.keys(fields).length > 0) {
-      await tx.update(items).set(fields).where(and(eq(items.id, itemId), eq(items.userId, userId)));
+      await tx.update(items).set(fields).where(eq(items.id, itemId));
     }
     // A new address or new note text means fetching and summarizing again.
-    if (fields.url !== undefined || fields.noteBody !== undefined) await enqueue(tx, userId, [itemId]);
+    if (fields.url !== undefined || fields.noteBody !== undefined) await enqueue(tx, existing.ownerId, [itemId]);
+    await touch(existing.pageId);
     const [row] = await tx.select().from(items).where(eq(items.id, itemId));
     return { item: { id: row.id, type: row.type, url: row.url, title: row.title, noteBody: row.noteBody, position: row.position } };
   });
@@ -699,33 +827,43 @@ export function restoreItem(userId: string, itemId: string) {
 }
 
 function setItemStatus(userId: string, itemId: string, status: "active" | "trashed") {
-  return write(userId, async (tx) => {
-    const [existing] = await tx
-      .select({ id: items.id, type: items.type, status: items.status })
-      .from(items)
-      .where(and(eq(items.id, itemId), eq(items.userId, userId)));
-    if (!existing) throw new NotFoundError("Item");
-    // Restoring a trashed link counts toward the Free link limit again.
-    if (status === "active" && existing.status === "trashed" && existing.type === "link") await assertCanAddLinks(userId, 1, tx);
-    await tx.update(items).set({ status }).where(and(eq(items.id, itemId), eq(items.userId, userId)));
+  return write(userId, async (tx, touch) => {
+    const existing = await itemAccess(tx, userId, itemId);
+    // Agent Inbox items are only approved or dismissed by their owner, through the inbox.
+    if (existing.status === "inbox") throw new NotFoundError("Item");
+    // Restoring a trashed link counts toward the (owner's) Free link limit again.
+    if (status === "active" && existing.status === "trashed" && existing.type === "link") {
+      await assertCanAddLinks(existing.ownerId, 1, tx);
+    }
+    await tx.update(items).set({ status }).where(eq(items.id, itemId));
+    await touch(existing.pageId);
     return {};
   });
 }
 
 /** Sets the order of items in a group, moving any listed item into that group. */
 export function reorderItems(userId: string, groupId: string, ids: string[]) {
-  return write(userId, async (tx) => {
-    await assertGroup(tx, userId, groupId);
+  return write(userId, async (tx, touch) => {
+    const target = await groupAccess(tx, userId, groupId);
+    const sources = new Set<string>();
     if (ids.length > 0) {
-      const owned = await tx
-        .select({ id: items.id })
+      const rows = await tx
+        .select({ id: items.id, pageId: groups.pageId })
         .from(items)
-        .where(and(eq(items.userId, userId), inArray(items.id, ids)));
-      if (owned.length !== new Set(ids).size) throw new NotFoundError("Item");
+        .innerJoin(groups, eq(groups.id, items.groupId))
+        .where(inArray(items.id, ids));
+      if (rows.length !== new Set(ids).size) throw new NotFoundError("Item");
+      for (const r of rows) sources.add(r.pageId);
+      // Items move only between pages of the same owner that this user can edit.
+      for (const source of sources) {
+        const access = await pageAccess(tx, userId, source, "Item");
+        if (access.ownerId !== target.ownerId) throw new InvalidInputError("Links can't move between your pages and a shared page.");
+      }
     }
     for (const [position, id] of ids.entries()) {
-      await tx.update(items).set({ position, groupId }).where(and(eq(items.id, id), eq(items.userId, userId)));
+      await tx.update(items).set({ position, groupId }).where(eq(items.id, id));
     }
+    for (const page of new Set([target.pageId, ...sources])) await touch(page);
     return {};
   });
 }

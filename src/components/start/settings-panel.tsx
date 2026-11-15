@@ -20,6 +20,8 @@ type Props = {
   onPageLayout: (layout: PageLayout) => void;
   onRenamePage: (name: string) => void;
   onDeletePage: () => void;
+  /** Leave a page someone else shared with you. */
+  onLeavePage: () => void;
   onImported: (result: { pageIds: string[]; links: number; pages: number; notes?: number }) => void;
 };
 
@@ -178,6 +180,24 @@ export function SettingsPanel(p: Props) {
                 ))}
               </select>
             </label>
+            {p.page.access === "editor" ? (
+              <>
+                <p className="mb-4 text-sm leading-relaxed text-slate-600 dark:text-slate-400">
+                  <strong className="text-slate-900 dark:text-white">{p.page.ownerName}</strong> shared this page with you. You can
+                  edit it, and changes show up for everyone on it. Whether AI agents can see it is up to {p.page.ownerName}.
+                </p>
+                <button
+                  type="button"
+                  className="btn-ghost w-full justify-center text-red-600 hover:bg-red-50 hover:text-red-700 dark:text-red-400 dark:hover:bg-red-500/10"
+                  onClick={() => {
+                    if (confirm(`Leave "${p.page.name}"? It will disappear from your SyncPads. ${p.page.ownerName} keeps it.`)) p.onLeavePage();
+                  }}
+                >
+                  Leave this page
+                </button>
+              </>
+            ) : (
+            <>
             <label className="mb-4 flex items-center justify-between gap-3 text-sm font-medium text-slate-800 dark:text-slate-200">
               <span className="flex items-center gap-2">
                 <IconEyeOff size={16} className="text-slate-500" />
@@ -207,6 +227,8 @@ export function SettingsPanel(p: Props) {
               <IconTrash size={15} />
               Delete this page
             </button>
+            </>
+            )}
           </section>
         </div>
 

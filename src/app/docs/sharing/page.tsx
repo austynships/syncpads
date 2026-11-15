@@ -15,7 +15,7 @@ export default function SharingPage() {
         intro={
           <p>
             Send anyone a link to one of your pages: a list of tools for a new teammate, resources for a client, or your
-            favorite reading. They see a clean, read-only page and can save a copy to their own SyncPads in one click.
+            favorite reading. Choose whether they can only view it, or edit it with you.
           </p>
         }
       />
@@ -28,10 +28,14 @@ export default function SharingPage() {
             Click <strong>Share</strong> in the top bar.
           </li>
           <li>
+            Under <strong>Anyone with the link can</strong>, pick <strong>View</strong> or <strong>Edit</strong>.
+          </li>
+          <li>
             Click <strong>Create link and copy it</strong>. The link is now on your clipboard: paste it into an email, a chat
             or a document.
           </li>
         </ol>
+        <p>You can switch between View and Edit at any time; the link stays the same.</p>
         <p>
           The <strong>Share</strong> button turns orange and reads <strong>Shared</strong> while a page is shared. Click it any
           time to copy the link again, use <strong>Preview</strong> to see exactly what others see, or, on a phone, use{" "}
@@ -50,12 +54,45 @@ export default function SharingPage() {
           </li>
         </ul>
         <p>
-          They never see your other pages, your Agent Inbox, your trash, or AI summaries. They can&apos;t change your page, and
-          they don&apos;t need an account to view it.
+          They never see your other pages, your Agent Inbox, your trash, or AI summaries. They don&apos;t need an account to
+          view it, and they can&apos;t change it unless the link allows editing and they join.
         </p>
         <p>
           The page stays up to date: when you add or remove a link, everyone with the link sees the change the next time they
           open it.
+        </p>
+      </Prose>
+
+      <H2 id="edit">Let people edit</H2>
+      <Prose>
+        <p>
+          With <strong>Edit</strong>, anyone who opens the link can click <strong>Edit this page</strong>. They sign in (or
+          create a free account), and the page appears as a tab in their own SyncPads, marked with a people icon. From there
+          they work on it like any of their pages: add and edit links, notes and groups, drag things around, rename it or
+          change its columns. Everyone on the page sees each other&apos;s changes within a few seconds.
+        </p>
+        <ul>
+          <li>
+            <strong>Editors see everything on the page</strong>, notes included. The &ldquo;Include notes&rdquo; setting only
+            applies to people who view the link without joining.
+          </li>
+          <li>
+            <strong>Editors can pass the link on</strong>, so anyone they send it to can join too. To control who joins,
+            switch the link to View, or stop sharing.
+          </li>
+          <li>
+            <strong>Only you</strong> can delete the page, hide it from AI agents, change sharing or remove people. Editors
+            can leave the page from <strong>Share</strong> or <strong>Settings</strong>.
+          </li>
+          <li>
+            Links and notes on your page count toward <strong>your</strong> plan&apos;s limits, whoever adds them. Things
+            can&apos;t be dragged between someone&apos;s own pages and a page shared with them.
+          </li>
+        </ul>
+        <p>
+          To see who can edit, open <strong>Share</strong>: <strong>People who can edit</strong> lists everyone who joined,
+          with a <strong>Remove</strong> button for each. Switching the link to View, or stopping sharing, removes everyone
+          at once; the page disappears from their SyncPads.
         </p>
       </Prose>
 
@@ -74,8 +111,8 @@ export default function SharingPage() {
       <H2 id="stop-sharing">Stop sharing</H2>
       <Prose>
         <p>
-          Click <strong>Shared</strong>, then <strong>Stop sharing</strong>. The link stops working immediately for everyone.
-          Copies people already saved stay in their accounts. If you share the page again later, it gets a new link, so the
+          Click <strong>Shared</strong>, then <strong>Stop sharing</strong>. The link stops working immediately for everyone,
+          and people who joined to edit lose the page. Copies people already saved stay in their accounts. If you share the page again later, it gets a new link, so the
           old one never comes back to life.
         </p>
       </Prose>
@@ -91,6 +128,11 @@ export default function SharingPage() {
           Sharing doesn&apos;t change what your own AI can see. To keep a page away from your AI, use{" "}
           <Link href="/docs/control#hidden-pages">Hide this page from AI agents</Link>. A shared page can be hidden from your
           AI, and a hidden page can still be shared.
+        </p>
+        <p>
+          A page someone shared with you to edit is available to your AI too, to search and read, unless its owner hid it
+          from AI agents; then it&apos;s hidden from everyone&apos;s AI. AIs can&apos;t add links or save context to a page
+          shared with you, only to your own pages.
         </p>
         <p>
           To hand someone everything at once instead, <Link href="/docs/import-export#export">export your pages</Link> as a

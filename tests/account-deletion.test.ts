@@ -87,6 +87,8 @@ describe.skipIf(!url)("account deletion", () => {
     await db.insert(s.widgets).values({ id: widgetId, userId, pageId, type: "rss", config: { feedUrl: "https://example.com/feed" } });
     await db.insert(s.feedItems).values({ userId, widgetId, title: "Post", url: "https://example.com/p" });
     await db.insert(s.agentScopes).values({ agentId, pageId, userId });
+    // Membership of a shared page (the user editing a page; here their own, which is enough to test the cascade).
+    await db.insert(s.pageMembers).values({ pageId, userId });
     await db.insert(s.activityLog).values({ userId, agentId, itemId, action: "add_link", after: { url: "x" } });
     // Phase 5: an OAuth client is shared (not user data), but codes and tokens belong to the user.
     const clientId = `test_${userId.slice(0, 8)}`;

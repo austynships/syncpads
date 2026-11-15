@@ -115,3 +115,6 @@ export const IconShare = (p: IconProps) => (
 export const IconExternal = (p: IconProps) => (
   <Icon {...p}><path d="M14 4h6v6M20 4l-9 9" /><path d="M18 14v4.5a1.5 1.5 0 01-1.5 1.5h-11A1.5 1.5 0 014 18.5v-11A1.5 1.5 0 015.5 6H10" /></Icon>
 );
+export const IconUsers = (p: IconProps) => (
+  <Icon {...p}><circle cx="9" cy="8" r="3.25" /><path d="M3 19.5c.6-3.2 3-5 6-5s5.4 1.8 6 5" /><path d="M15.5 4.9a3.25 3.25 0 010 6.2M17.5 14.7c1.9.6 3.1 2.2 3.5 4.8" /></Icon>
+);

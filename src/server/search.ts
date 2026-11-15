@@ -67,6 +67,11 @@ type Row = {
   snapshot: string | null;
 };
 
+/** Items the user can see: their own, and those on pages shared with them to edit. */
+function canSee(userId: string): SQL {
+  return sql`(i.user_id = ${userId} OR p.id IN (SELECT pm.page_id FROM page_members pm WHERE pm.user_id = ${userId}))`;
+}
+
 function selectItems(userId: string, where: SQL, extra: SQL = sql``) {
   return db.execute(sql`
     SELECT i.id, i.type, i.url, i.title, i.note_body AS noteBody,
@@ -77,7 +82,7 @@ function selectItems(userId: string, where: SQL, extra: SQL = sql``) {
     JOIN \`groups\` g ON g.id = i.group_id
     JOIN pages p ON p.id = g.page_id
     LEFT JOIN item_enrichment e ON e.item_id = i.id
-    WHERE i.user_id = ${userId} AND i.status = 'active' AND ${where}
+    WHERE ${canSee(userId)} AND i.status = 'active' AND ${where}
   `);
 }
 
@@ -115,7 +120,7 @@ async function keywordSearch(userId: string, input: SearchInput, limit: number):
     JOIN \`groups\` g ON g.id = i.group_id
     JOIN pages p ON p.id = g.page_id
     LEFT JOIN item_enrichment e ON e.item_id = i.id
-    WHERE i.user_id = ${userId} AND i.status = 'active' AND ${filters(input)}
+    WHERE ${canSee(userId)} AND i.status = 'active' AND ${filters(input)}
     HAVING score > 0
     ORDER BY score DESC
     LIMIT ${limit}

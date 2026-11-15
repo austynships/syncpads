@@ -135,6 +135,8 @@ export const pages = mysqlTable(
     // Null = not shared. Turning sharing off clears it, so old links stop working.
     shareToken: varchar("share_token", { length: 64 }).unique(),
     shareNotes: boolean("share_notes").notNull().default(false), // include notes, not just links
+    // "view": read-only page + Save a copy. "edit": signed-in people who open the link can join and edit.
+    shareRole: mysqlEnum("share_role", ["view", "edit"]).notNull().default("view"),
     shareCopies: int("share_copies").notNull().default(0), // times someone saved a copy
     sharedAt: datetime("shared_at", { mode: "date", fsp: 3 }),
     createdAt: createdAt(),
@@ -399,6 +401,26 @@ export const feedItems = mysqlTable(
 );
 
 /** Pages an agent may see. No rows for an agent = all non-hidden pages. */
+/**
+ * People who joined a shared page through its edit link. The page and its
+ * groups and items stay the owner's rows (owner's plan limits apply); members
+ * see it as a tab in their own workspace and can edit it. `position` orders the
+ * tab among their own pages. Removed when sharing is turned off or set to view only.
+ */
+export const pageMembers = mysqlTable(
+  "page_members",
+  {
+    pageId: varchar("page_id", { length: 36 })
+      .notNull()
+      .references(() => pages.id, { onDelete: "cascade" }),
+    userId: userId(),
+    role: mysqlEnum("role", ["editor"]).notNull().default("editor"),
+    position: int("position").notNull().default(0),
+    createdAt: createdAt(),
+  },
+  (t) => [primaryKey({ columns: [t.pageId, t.userId] }), index("page_members_user_id_idx").on(t.userId)],
+);
+
 export const agentScopes = mysqlTable(
   "agent_scopes",
   {

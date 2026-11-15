@@ -5,8 +5,8 @@ import { Favicon } from "@/components/start/favicon";
 import { sanitizeNoteHtml } from "@/lib/sanitize";
 import { wallpaperCss } from "@/lib/wallpapers";
 import { getSession } from "@/lib/session";
-import { getSharedPage, type SharedPage } from "@/server/share";
-import { SaveCopy } from "./save-copy";
+import { getSharedPage, isPageMember, type SharedPage } from "@/server/share";
+import { JoinToEdit, SaveCopy } from "./save-copy";
 
 export const dynamic = "force-dynamic";
 
@@ -46,6 +46,9 @@ export default async function SharedPageView({ params }: Props) {
   const [page, session] = await Promise.all([getSharedPage(token), getSession()]);
   if (!page) notFound();
   const isOwner = session?.user.id === page.ownerId;
+  const canEdit = page.role === "edit";
+  const isEditor = Boolean(session && !isOwner && canEdit && (await isPageMember(page.pageId, session.user.id)));
+  const openHref = `/app?page=${encodeURIComponent(page.pageId)}`;
   // The owner's look: light, dark, or "system" (follows the visitor's device, via the
   // .theme-system dark variant in globals.css), plus their wallpaper.
   const themeClass = page.theme === "dark" ? "dark" : page.theme === "system" ? "theme-system" : "";
@@ -62,7 +65,16 @@ export default async function SharedPageView({ params }: Props) {
       <header className="sticky top-0 z-10 border-b border-slate-900/5 bg-white/75 backdrop-blur-md dark:border-white/10 dark:bg-slate-950/70">
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-3 px-4 sm:px-6">
           <Logo href="/" height={26} tone="auto" />
-          {!isOwner && <SaveCopy token={token} signedIn={Boolean(session)} />}
+          {isOwner ? null : isEditor ? (
+            // Plain <a>: the app is a separate client bundle.
+            <a href={openHref} className="btn-primary">
+              Open in your SyncPads
+            </a>
+          ) : canEdit ? (
+            <JoinToEdit token={token} signedIn={Boolean(session)} />
+          ) : (
+            <SaveCopy token={token} signedIn={Boolean(session)} />
+          )}
         </div>
       </header>
 
@@ -101,16 +113,35 @@ export default async function SharedPageView({ params }: Props) {
           </div>
         )}
 
-        {!isOwner && (
+        {!isOwner && !isEditor && (
           <section className="mt-14 overflow-hidden rounded-3xl bg-slate-900 px-6 py-10 text-center text-white ring-1 ring-white/10 sm:px-10">
-            <h2 className="text-balance text-2xl font-bold tracking-tight">Keep this page, and make it yours</h2>
-            <p className="mx-auto mt-2 max-w-xl text-balance text-slate-300">
-              Save a copy to your own SyncPads: your links and notes in one place, ready for you and for the AI you work with.
-              Free to start.
-            </p>
-            <div className="mt-6 flex justify-center">
-              <SaveCopy token={token} signedIn={Boolean(session)} size="lg" />
-            </div>
+            {canEdit ? (
+              <>
+                <h2 className="text-balance text-2xl font-bold tracking-tight">{page.ownerName} invited you to edit this page</h2>
+                <p className="mx-auto mt-2 max-w-xl text-balance text-slate-300">
+                  {session
+                    ? "It appears in your SyncPads as a tab. Add links, notes and groups, and everyone on the page sees the changes."
+                    : "Sign in or create a free account, and it appears in your SyncPads as a tab. Add links, notes and groups, and everyone on the page sees the changes."}
+                </p>
+                <div className="mt-6 flex flex-wrap items-start justify-center gap-3">
+                  <JoinToEdit token={token} signedIn={Boolean(session)} size="lg" />
+                </div>
+                <p className="mt-4 text-sm text-slate-400">
+                  Prefer your own version? <SaveCopyLink token={token} signedIn={Boolean(session)} />
+                </p>
+              </>
+            ) : (
+              <>
+                <h2 className="text-balance text-2xl font-bold tracking-tight">Keep this page, and make it yours</h2>
+                <p className="mx-auto mt-2 max-w-xl text-balance text-slate-300">
+                  Save a copy to your own SyncPads: your links and notes in one place, ready for you and for the AI you work with.
+                  Free to start.
+                </p>
+                <div className="mt-6 flex justify-center">
+                  <SaveCopy token={token} signedIn={Boolean(session)} size="lg" />
+                </div>
+              </>
+            )}
           </section>
         )}
       </main>
@@ -125,6 +156,19 @@ export default async function SharedPageView({ params }: Props) {
       </a>
     </div>
     </div>
+  );
+}
+
+/** A quiet "save a copy" next to the main Edit button. */
+function SaveCopyLink({ token, signedIn }: { token: string; signedIn: boolean }) {
+  return signedIn ? (
+    <span className="inline-block align-middle [&_.btn-primary]:bg-transparent [&_.btn-primary]:p-0 [&_.btn-primary]:text-sm [&_.btn-primary]:font-semibold [&_.btn-primary]:text-white [&_.btn-primary]:underline [&_.btn-primary]:shadow-none [&_svg]:hidden">
+      <SaveCopy token={token} signedIn />
+    </span>
+  ) : (
+    <a href={`/signup?next=${encodeURIComponent(`/s/${token}`)}`} className="font-semibold text-white underline">
+      Save a copy
+    </a>
   );
 }
 

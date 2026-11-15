@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { IconCheck, IconCopy } from "@/components/icons";
+import { IconCheck, IconCopy, IconPencil } from "@/components/icons";
 
 type State = { kind: "idle" } | { kind: "saving" } | { kind: "saved"; pageId: string } | { kind: "error"; message: string; upgrade: boolean };
 
@@ -61,6 +61,50 @@ export function SaveCopy({ token, signedIn, size = "md" }: { token: string; sign
               See plans
             </a>
           )}
+        </span>
+      )}
+    </span>
+  );
+}
+
+/**
+ * "Edit this page" on an edit link: signed-in visitors join and land on the page
+ * in their workspace; everyone else signs up (or in) and comes straight back here.
+ */
+export function JoinToEdit({ token, signedIn, size = "md" }: { token: string; signedIn: boolean; size?: "md" | "lg" }) {
+  const [state, setState] = useState<{ kind: "idle" | "joining" } | { kind: "error"; message: string }>({ kind: "idle" });
+  const big = size === "lg" ? "px-5 py-2.5 text-base" : "";
+
+  if (!signedIn) {
+    return (
+      <a href={`/signup?next=${encodeURIComponent(`/s/${token}`)}`} className={`btn-primary ${big}`}>
+        <IconPencil size={15} />
+        Edit this page
+      </a>
+    );
+  }
+
+  async function join() {
+    setState({ kind: "joining" });
+    try {
+      const res = await fetch(`/api/shared/${encodeURIComponent(token)}/join`, { method: "POST" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) return setState({ kind: "error", message: data.error ?? "Couldn't open this page for editing. Please try again." });
+      window.location.assign(`/app?page=${encodeURIComponent(data.pageId)}`);
+    } catch {
+      setState({ kind: "error", message: "Couldn't reach SyncPads. Check your connection and try again." });
+    }
+  }
+
+  return (
+    <span className="inline-flex flex-col items-end gap-1">
+      <button type="button" onClick={join} disabled={state.kind === "joining"} className={`btn-primary ${big}`}>
+        <IconPencil size={15} />
+        {state.kind === "joining" ? "Opening…" : "Edit this page"}
+      </button>
+      {state.kind === "error" && (
+        <span className="max-w-xs text-right text-xs text-red-600" role="alert">
+          {state.message}
         </span>
       )}
     </span>

@@ -11,7 +11,7 @@
  */
 import { and, asc, desc, eq, inArray, isNull, max, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { activityLog, agents, agentScopes, groups, itemEnrichment, items, pages, userSettings } from "@/db/schema";
+import { activityLog, agents, agentScopes, groups, itemEnrichment, items, pageMembers, pages, userSettings } from "@/db/schema";
 import { redis } from "@/lib/redis";
 import { displayHost, normalizeUrl } from "@/lib/url";
 import { noteText } from "./enrichment/extract";
@@ -31,11 +31,19 @@ export const UNTRUSTED_NOTE =
 
 /** Pages this agent may see: not hidden, and within its chosen pages if it has any. */
 export async function visiblePages(ctx: Pick<AgentContext, "userId" | "agentId">) {
-  const rows = await db
-    .select({ id: pages.id, name: pages.name, position: pages.position })
+  const own = await db
+    .select({ id: pages.id, name: pages.name, position: pages.position, own: sql<boolean>`TRUE` })
     .from(pages)
-    .where(and(eq(pages.userId, ctx.userId), eq(pages.hiddenFromAgents, false)))
-    .orderBy(asc(pages.position));
+    .where(and(eq(pages.userId, ctx.userId), eq(pages.hiddenFromAgents, false)));
+  // Pages shared with the user to edit, unless their owner hid them from AI.
+  const joined = await db
+    .select({ id: pages.id, name: pages.name, position: pageMembers.position, own: sql<boolean>`FALSE` })
+    .from(pageMembers)
+    .innerJoin(pages, eq(pages.id, pageMembers.pageId))
+    .where(and(eq(pageMembers.userId, ctx.userId), eq(pages.hiddenFromAgents, false)));
+  const rows = [...own, ...joined]
+    .map((p) => ({ ...p, own: Boolean(Number(p.own)) }))
+    .sort((a, b) => a.position - b.position);
   const scoped = await db.select({ pageId: agentScopes.pageId }).from(agentScopes).where(eq(agentScopes.agentId, ctx.agentId));
   if (scoped.length === 0) return rows;
   const allowed = new Set(scoped.map((s) => s.pageId));
@@ -232,7 +240,11 @@ export async function toolAddLink(
   if (!url) throw new AgentError("That isn't a valid web address. Use a full http(s) URL.");
 
   const visible = await visiblePages(ctx);
-  const page = input.page_id ? visible.find((p) => p.id === input.page_id) : visible[0];
+  const writable = visible.filter((p) => p.own);
+  if (input.page_id && !writable.some((p) => p.id === input.page_id) && visible.some((p) => p.id === input.page_id)) {
+    throw new AgentError("That page was shared with the user by someone else, so agents can read it but not add to it. Use one of the user's own pages.");
+  }
+  const page = input.page_id ? writable.find((p) => p.id === input.page_id) : writable[0];
   if (!page) {
     throw new AgentError(
       input.page_id
@@ -366,7 +378,11 @@ export async function toolSaveContext(ctx: AgentContext, input: SaveContextInput
   const reason = input.reason ? clean(input.reason) : null;
 
   const visible = await visiblePages(ctx);
-  const page = input.page_id ? visible.find((p) => p.id === input.page_id) : visible[0];
+  const writable = visible.filter((p) => p.own);
+  if (input.page_id && !writable.some((p) => p.id === input.page_id) && visible.some((p) => p.id === input.page_id)) {
+    throw new AgentError("That page was shared with the user by someone else, so agents can read it but not add to it. Use one of the user's own pages.");
+  }
+  const page = input.page_id ? writable.find((p) => p.id === input.page_id) : writable[0];
   if (!page) {
     throw new AgentError(
       input.page_id

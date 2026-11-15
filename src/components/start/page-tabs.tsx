@@ -4,7 +4,7 @@ import { closestCenter, DndContext, PointerSensor, useSensor, useSensors, type D
 import { arrayMove, horizontalListSortingStrategy, SortableContext, useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useState } from "react";
-import { IconPlus } from "@/components/icons";
+import { IconPlus, IconUsers } from "@/components/icons";
 import type { PageDTO } from "@/lib/start-page-types";
 
 type Props = {
@@ -108,8 +108,15 @@ function Tab({
           className={`tab ${active ? "tab-active" : ""}`}
           onClick={() => onSelect(page.id)}
           onDoubleClick={() => setRenaming(true)}
-          title="Double-click to rename, drag to reorder"
+          title={
+            page.access === "editor"
+              ? `Shared with you by ${page.ownerName}. Double-click to rename, drag to reorder`
+              : "Double-click to rename, drag to reorder"
+          }
         >
+          {(page.access === "editor" || page.share?.role === "edit") && (
+            <IconUsers size={14} className="-ml-0.5 mr-1 inline-block align-[-2px] opacity-70" />
+          )}
           {page.name}
         </button>
       )}

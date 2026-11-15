@@ -25,7 +25,15 @@ export type GroupDTO = {
   items: ItemDTO[];
 };
 
-export type PageShareDTO = { token: string; includeNotes: boolean; copies: number };
+export type PageShareDTO = {
+  token: string;
+  /** "view": read-only link. "edit": people who open it can join and edit. */
+  role: "view" | "edit";
+  includeNotes: boolean;
+  copies: number;
+  /** People who joined to edit (owner only; 0 for editors). */
+  editors: number;
+};
 
 export type PageDTO = {
   id: string;
@@ -33,6 +41,10 @@ export type PageDTO = {
   layout: PageLayout;
   position: number;
   hiddenFromAgents: boolean;
+  /** "owner": the user's own page. "editor": someone else's page they joined to edit. */
+  access: "owner" | "editor";
+  /** First name of the owner, for pages shared with the user; null for their own. */
+  ownerName: string | null;
   /** Public link (/s/<token>) when the page is shared; null otherwise. */
   share: PageShareDTO | null;
   groups: GroupDTO[];

@@ -151,6 +151,19 @@ export function StartPage({ userId, email, admin = false }: { userId: string; em
     mutate((s) => mapPage(s, id, (p) => ({ ...p, name })), () => api("PATCH", `/api/pages/${id}`, { name }));
   const setPageLayout = (id: string, layout: PageLayout) =>
     mutate((s) => mapPage(s, id, (p) => ({ ...p, layout })), () => api("PATCH", `/api/pages/${id}`, { layout }));
+  /** Leave a page someone else shared with you: it disappears from your workspace. */
+  const leavePage = async (target: { id: string; name: string }) => {
+    try {
+      await api("POST", `/api/pages/${target.id}/leave`);
+      setSettingsOpen(false);
+      setShareOpen(false);
+      await refresh();
+      toast(`You left "${target.name}".`);
+    } catch (err) {
+      toast((err as Error).message);
+    }
+  };
+
   const deletePage = (id: string) => {
     setSettingsOpen(false);
     return mutate((s) => ({ ...s, pages: s.pages.filter((p) => p.id !== id) }), () => api("DELETE", `/api/pages/${id}`));
@@ -269,7 +282,7 @@ export function StartPage({ userId, email, admin = false }: { userId: string; em
           <SettingsPanel
             settings={state.settings}
             page={page}
-            canDeletePage={state.pages.length > 1}
+            canDeletePage={state.pages.filter((p) => p.access === "owner").length > 1}
             onClose={() => setSettingsOpen(false)}
             onTheme={setTheme}
             onWallpaper={setWallpaper}
@@ -278,6 +291,7 @@ export function StartPage({ userId, email, admin = false }: { userId: string; em
             onPageLayout={(layout) => setPageLayout(page.id, layout)}
             onRenamePage={(name) => renamePage(page.id, name)}
             onDeletePage={() => deletePage(page.id)}
+            onLeavePage={() => leavePage(page)}
             onImported={async (result) => {
               await refresh();
               if (result.pageIds[0]) selectPage(result.pageIds[0]);
@@ -296,6 +310,7 @@ export function StartPage({ userId, email, admin = false }: { userId: string; em
             onClose={() => setShareOpen(false)}
             onChanged={() => void refresh()}
             onError={(message) => toast(message)}
+            onLeave={() => leavePage(page)}
           />
         )}
 

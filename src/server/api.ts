@@ -117,7 +117,8 @@ export const schemas = {
     })
     .refine((v) => Object.keys(v).length > 0, "Nothing to update."),
   reorderPages: z.object({ ids }),
-  sharePage: z.object({ includeNotes: z.boolean().optional() }),
+  sharePage: z.object({ includeNotes: z.boolean().optional(), role: z.enum(["view", "edit"]).optional() }),
+  removeEditor: z.object({ userId: id }),
 
   createGroup: z.object({
     pageId: id,
