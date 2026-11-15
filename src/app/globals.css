@@ -1,7 +1,17 @@
 @import "tailwindcss";
 
 /* Dark mode follows a .dark class on a wrapper (set from the user's theme setting). */
-@custom-variant dark (&:where(.dark, .dark *));
+@custom-variant dark {
+  &:where(.dark, .dark *) {
+    @slot;
+  }
+  /* Shared pages whose owner uses the "system" theme follow the visitor's device. */
+  @media (prefers-color-scheme: dark) {
+    &:where(.theme-system, .theme-system *) {
+      @slot;
+    }
+  }
+}
 
 /*
  * SyncPads brand tokens (syncpads-brand-identity.md).

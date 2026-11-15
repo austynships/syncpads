@@ -124,6 +124,13 @@ describe.skipIf(!url)("page sharing", () => {
     expect((await share.getSharedPage(token))!.copies).toBe(1);
   });
 
+  it("shows the owner's theme and wallpaper", async () => {
+    const token = (await share.sharePage(owner, pageId, {})).share.token;
+    expect(await share.getSharedPage(token)).toMatchObject({ theme: "system", wallpaper: { type: "none" } });
+    await sp.updateSettings(owner, { theme: "dark", wallpaper: { type: "preset", value: "horizon" } });
+    expect(await share.getSharedPage(token)).toMatchObject({ theme: "dark", wallpaper: { type: "preset", value: "horizon" } });
+  });
+
   it("serves favicons only for hosts on the shared page", async () => {
     const token = (await share.sharePage(owner, pageId, {})).share.token;
     expect(await share.sharedPageHasHost(token, "www.figma.com")).toBe(true);

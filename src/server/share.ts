@@ -12,7 +12,7 @@
 import { randomBytes } from "node:crypto";
 import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { groups, items, pages, users } from "@/db/schema";
+import { groups, items, pages, userSettings, users, type Wallpaper } from "@/db/schema";
 import { FILE_FORMAT, FILE_VERSION, type SyncPadsFile } from "@/lib/syncpads-file";
 import { NotFoundError, importSyncPadsFile, write } from "./start-page";
 
@@ -74,6 +74,9 @@ export type SharedPage = {
   includeNotes: boolean;
   sharedAt: Date | null;
   copies: number;
+  /** The owner's look, so the shared page matches their start page. */
+  theme: "system" | "light" | "dark";
+  wallpaper: Wallpaper | null;
   groups: { name: string; layout: "list" | "tiles"; items: SharedItem[] }[];
   links: number;
   notes: number;
@@ -100,9 +103,12 @@ export async function getSharedPage(token: string): Promise<SharedPage | null> {
       sharedAt: pages.sharedAt,
       copies: pages.shareCopies,
       ownerName: users.name,
+      theme: userSettings.theme,
+      wallpaper: userSettings.wallpaper,
     })
     .from(pages)
     .innerJoin(users, eq(users.id, pages.userId))
+    .leftJoin(userSettings, eq(userSettings.userId, pages.userId))
     .where(eq(pages.shareToken, token));
   if (!page) return null;
 
@@ -150,6 +156,8 @@ export async function getSharedPage(token: string): Promise<SharedPage | null> {
     includeNotes: page.shareNotes,
     sharedAt: page.sharedAt,
     copies: page.copies,
+    theme: page.theme ?? "system",
+    wallpaper: page.wallpaper ?? null,
     groups: shared,
     links,
     notes,
