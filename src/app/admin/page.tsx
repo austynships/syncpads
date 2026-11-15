@@ -39,6 +39,7 @@ export default async function OverviewPage({ searchParams }: { searchParams: Pro
           <Stat label="Active users" value={num(s.users.active)} sub={`Used SyncPads in the ${w}`} highlight />
           <Stat label="Links saved" value={num(s.content.links)} sub={`+${num(s.content.linksAdded)} in the ${w}`} />
           <Stat label="Pages created" value={num(s.content.pages)} sub={`+${num(s.content.pagesAdded)} in the ${w}`} />
+          <Stat label="Shared pages" value={num(s.content.sharedPages)} sub={`Saved as a copy ${num(s.content.sharedCopies)} times`} />
         </Grid>
         <div className="mt-4">
           <SignupChart period={period} data={s.signups} />

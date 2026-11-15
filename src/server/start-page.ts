@@ -68,7 +68,8 @@ async function assertGroup(tx: Tx, userId: string, groupId: string) {
 }
 
 /** Run a write in a transaction and return its result plus the new revision. */
-async function write<T extends object>(userId: string, fn: (tx: Tx) => Promise<T>) {
+/** Runs a write in a transaction and bumps the user's revision, so other tabs and devices pick it up. */
+export async function write<T extends object>(userId: string, fn: (tx: Tx) => Promise<T>) {
   await ensureUserSetup(userId);
   return db.transaction(async (tx) => {
     const result = await fn(tx);
@@ -178,6 +179,7 @@ export async function getState(userId: string): Promise<StateDTO> {
         layout: (p.layout as PageLayout) ?? "auto",
         position: p.position,
         hiddenFromAgents: p.hiddenFromAgents,
+        share: p.shareToken ? { token: p.shareToken, includeNotes: p.shareNotes, copies: p.shareCopies } : null,
         groups: groupsByPage.get(p.id) ?? [],
       }),
     ),

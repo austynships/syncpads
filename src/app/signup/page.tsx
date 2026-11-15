@@ -1,12 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { IconCheck, IconMail } from "@/components/icons";
 import { Clarity } from "@/components/clarity";
 import { ResendVerification } from "@/components/resend-verification";
 import { Alert, AuthCard, Button, Field, StatusIcon, linkClass } from "@/components/ui";
 import { authClient } from "@/lib/auth-client";
+import { nextFromLocation } from "@/lib/safe-next";
 
 export default function SignupPage() {
   const [error, setError] = useState<string | null>(null);
@@ -14,6 +15,10 @@ export default function SignupPage() {
   const [loading, setLoading] = useState(false);
   const [password, setPassword] = useState("");
   const longEnough = password.length >= 8;
+  // Where to go once the email is verified, such as back to a shared page to save a copy.
+  const [next, setNext] = useState<string | null>(null);
+  useEffect(() => setNext(nextFromLocation()), []);
+  const savingShared = next?.startsWith("/s/") ?? false;
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -31,7 +36,8 @@ export default function SignupPage() {
       name: String(form.get("name")),
       email,
       password,
-      callbackURL: "/verify-email", // where the verification link lands
+      // Where the verification link lands; it then continues to `next`.
+      callbackURL: next ? `/verify-email?next=${encodeURIComponent(next)}` : "/verify-email",
     });
     setLoading(false);
 
@@ -73,12 +79,16 @@ export default function SignupPage() {
     <>
     <Clarity />
     <AuthCard
-      title="Create your workspace"
-      subtitle="Bring your links, tools and notes together in one place."
+      title={savingShared ? "Create your free account" : "Create your workspace"}
+      subtitle={
+        savingShared
+          ? "Then save your copy of the shared page. It takes a minute."
+          : "Bring your links, tools and notes together in one place."
+      }
       footer={
         <>
           Already have an account?{" "}
-          <Link href="/login" className={linkClass}>
+          <Link href={next ? `/login?next=${encodeURIComponent(next)}` : "/login"} className={linkClass}>
             Sign in
           </Link>
         </>

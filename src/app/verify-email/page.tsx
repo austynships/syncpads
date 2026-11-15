@@ -2,6 +2,7 @@ import Link from "next/link";
 import { IconAlert, IconCheck, IconMail } from "@/components/icons";
 import { ResendVerification } from "@/components/resend-verification";
 import { AuthCard, StatusIcon, linkClass } from "@/components/ui";
+import { safeNext } from "@/lib/safe-next";
 import { getSession } from "@/lib/session";
 import { GoToApp } from "./go-to-app";
 
@@ -10,8 +11,8 @@ export const metadata = { title: "Verify your email" };
 // Verification links land here (callbackURL "/verify-email"). Better Auth has
 // already checked the token: on success the user is signed in; on failure it
 // adds ?error=TOKEN_EXPIRED or ?error=INVALID_TOKEN.
-export default async function VerifyEmailPage({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
-  const { error } = await searchParams;
+export default async function VerifyEmailPage({ searchParams }: { searchParams: Promise<{ error?: string; next?: string }> }) {
+  const { error, next } = await searchParams;
   const session = error ? null : await getSession();
 
   if (session?.user.emailVerified) {
@@ -25,7 +26,7 @@ export default async function VerifyEmailPage({ searchParams }: { searchParams: 
         title="Email verified"
         subtitle="You're all set. Taking you to your workspace…"
       >
-        <GoToApp />
+        <GoToApp to={safeNext(next) ?? "/app"} />
       </AuthCard>
     );
   }

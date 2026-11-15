@@ -212,7 +212,7 @@ export default function ImportExportPage() {
         </p>
       </Prose>
 
-      <NextPage href="/docs/troubleshooting" title="Troubleshooting" />
+      <NextPage href="/docs/sharing" title="Share a page" />
     </>
   );
 }

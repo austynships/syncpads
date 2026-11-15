@@ -131,6 +131,12 @@ export const pages = mysqlTable(
     hiddenFromAgents: boolean("hidden_from_agents").notNull().default(false),
     // Secret for the private .md / llms.txt URL (SP-19). Rotating = replacing it.
     mdToken: varchar("md_token", { length: 64 }).unique(),
+    // Public share link (/s/<token>): anyone with it can view the page and save a copy.
+    // Null = not shared. Turning sharing off clears it, so old links stop working.
+    shareToken: varchar("share_token", { length: 64 }).unique(),
+    shareNotes: boolean("share_notes").notNull().default(false), // include notes, not just links
+    shareCopies: int("share_copies").notNull().default(0), // times someone saved a copy
+    sharedAt: datetime("shared_at", { mode: "date", fsp: 3 }),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },

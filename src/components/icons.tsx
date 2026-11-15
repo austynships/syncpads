@@ -109,3 +109,9 @@ export const IconUndo = (p: IconProps) => <Icon {...p}><path d="M9 14L4 9l5-5" /
 export const IconEyeOff = (p: IconProps) => (
   <Icon {...p}><path d="M3 3l18 18M10.6 6.1A9.8 9.8 0 0112 6c5 0 8.5 4.5 9.5 6-.4.6-1.3 1.9-2.6 3.1M6.5 7.6C4.6 8.9 3.2 10.7 2.5 12c1 1.5 4.5 6 9.5 6 1.6 0 3-.4 4.3-1.1" /><path d="M9.9 9.9a3 3 0 004.2 4.2" /></Icon>
 );
+export const IconShare = (p: IconProps) => (
+  <Icon {...p}><path d="M12 15V3M7.5 7.5L12 3l4.5 4.5" /><path d="M5 12v6.5A2.5 2.5 0 007.5 21h9a2.5 2.5 0 002.5-2.5V12" /></Icon>
+);
+export const IconExternal = (p: IconProps) => (
+  <Icon {...p}><path d="M14 4h6v6M20 4l-9 9" /><path d="M18 14v4.5a1.5 1.5 0 01-1.5 1.5h-11A1.5 1.5 0 014 18.5v-11A1.5 1.5 0 015.5 6H10" /></Icon>
+);

@@ -1,23 +1,25 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Clarity } from "@/components/clarity";
 import { Alert, AuthCard, Button, Field, linkClass } from "@/components/ui";
 import { authClient } from "@/lib/auth-client";
+import { nextFromLocation } from "@/lib/safe-next";
 
 /**
  * Where to go after signing in: ?next= (e.g. back to an agent's consent
  * screen), but only a path on this site, never another domain.
  */
 function nextPath() {
-  const next = new URLSearchParams(window.location.search).get("next") ?? "";
-  return next.startsWith("/") && !next.startsWith("//") && !next.startsWith("/\\") ? next : "/app";
+  return nextFromLocation() ?? "/app";
 }
 
 export default function LoginPage() {
   const [error, setError] = useState<{ kind: "error" | "warning"; text: string } | null>(null);
   const [loading, setLoading] = useState(false);
+  const [next, setNext] = useState<string | null>(null);
+  useEffect(() => setNext(nextFromLocation()), []);
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -55,7 +57,7 @@ export default function LoginPage() {
       footer={
         <>
           New to SyncPads?{" "}
-          <Link href="/signup" className={linkClass}>
+          <Link href={next ? `/signup?next=${encodeURIComponent(next)}` : "/signup"} className={linkClass}>
             Create your workspace
           </Link>
         </>

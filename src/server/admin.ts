@@ -129,7 +129,7 @@ const activeItems = (type: "link" | "note", from?: Date) =>
 
 export async function overviewStats(period: Period) {
   const from = fromFor(period);
-  const [totalUsers, newUsers, activeUsers, links, linksAdded, totalPages, pagesAdded, agentUsersActive, agentCalls] =
+  const [totalUsers, newUsers, activeUsers, links, linksAdded, totalPages, pagesAdded, agentUsersActive, agentCalls, sharing] =
     await Promise.all([
       count(db.select({ n: COUNT }).from(users)),
       count(db.select({ n: COUNT }).from(users).where(gte(users.createdAt, from))),
@@ -140,6 +140,10 @@ export async function overviewStats(period: Period) {
       count(db.select({ n: COUNT }).from(pages).where(gte(pages.createdAt, from))),
       agentUsersActiveSince(from),
       agentCallsSince(from),
+      db
+        .select({ shared: sql<number>`COUNT(*)`, copies: sql<number>`COALESCE(SUM(${pages.shareCopies}), 0)` })
+        .from(pages)
+        .where(isNotNull(pages.shareToken)),
     ]);
   return {
     period,
@@ -147,7 +151,14 @@ export async function overviewStats(period: Period) {
     revenue: await revenue(from),
     subscriptions: await subscriptionSummary(),
     users: { total: totalUsers, new: newUsers, active: activeUsers },
-    content: { links, linksAdded, pages: totalPages, pagesAdded },
+    content: {
+      links,
+      linksAdded,
+      pages: totalPages,
+      pagesAdded,
+      sharedPages: Number(sharing[0]?.shared ?? 0),
+      sharedCopies: Number(sharing[0]?.copies ?? 0),
+    },
     mcp: {
       calls: agentCalls,
       usersActive: agentUsersActive,

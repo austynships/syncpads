@@ -25,12 +25,16 @@ export type GroupDTO = {
   items: ItemDTO[];
 };
 
+export type PageShareDTO = { token: string; includeNotes: boolean; copies: number };
+
 export type PageDTO = {
   id: string;
   name: string;
   layout: PageLayout;
   position: number;
   hiddenFromAgents: boolean;
+  /** Public link (/s/<token>) when the page is shared; null otherwise. */
+  share: PageShareDTO | null;
   groups: GroupDTO[];
 };
 

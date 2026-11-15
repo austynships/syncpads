@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Logo, LogoMark } from "@/components/brand";
-import { IconBot, IconInbox, IconLogOut, IconSliders, IconUser } from "@/components/icons";
+import { IconBot, IconInbox, IconLogOut, IconShare, IconSliders, IconUser } from "@/components/icons";
 import type { Wallpaper } from "@/db/schema";
 import { authClient } from "@/lib/auth-client";
 import type { GroupDTO, ItemDTO, PageLayout, StateDTO, Theme } from "@/lib/start-page-types";
@@ -15,6 +15,7 @@ import { InboxPanel } from "./inbox-panel";
 import { PageTabs } from "./page-tabs";
 import { SearchBar } from "./search-bar";
 import { SettingsPanel } from "./settings-panel";
+import { ShareDialog } from "./share-dialog";
 import { mapGroup, mapItem, mapPage, removeItem, reorderBy, setPageGroups } from "./state-ops";
 import { clearCache, useStartPage } from "./use-start-page";
 
@@ -37,6 +38,13 @@ export function StartPage({ userId, email, admin = false }: { userId: string; em
   const { state, offline, refresh, mutate } = useStartPage(userId, onError);
   const [pageId, setPageId] = useState<string | null>(() => {
     try {
+      // /app?page=<id> opens that page (used after saving a copy of a shared page).
+      const fromUrl = new URLSearchParams(window.location.search).get("page");
+      if (fromUrl) {
+        localStorage.setItem(`syncpads:page:${userId}`, fromUrl);
+        window.history.replaceState(null, "", window.location.pathname);
+        return fromUrl;
+      }
       return localStorage.getItem(`syncpads:page:${userId}`);
     } catch {
       return null;
@@ -44,6 +52,7 @@ export function StartPage({ userId, email, admin = false }: { userId: string; em
   });
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [inboxOpen, setInboxOpen] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
 
   const page = state?.pages.find((p) => p.id === pageId) ?? state?.pages[0];
   const selectPage = (id: string) => {
@@ -231,6 +240,20 @@ export function StartPage({ userId, email, admin = false }: { userId: string; em
               Offline
             </span>
           )}
+          <button
+            type="button"
+            className={`inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg px-2.5 text-sm font-semibold transition sm:px-3 ${
+              page.share
+                ? "bg-sync-50 text-sync-700 hover:bg-sync-100 dark:bg-sync-500/15 dark:text-sync-300"
+                : "text-slate-700 hover:bg-slate-900/5 dark:text-slate-200 dark:hover:bg-white/10"
+            }`}
+            onClick={() => setShareOpen(true)}
+            aria-label={page.share ? "Shared: manage sharing" : "Share this page"}
+            title={page.share ? "This page is shared" : "Share this page"}
+          >
+            <IconShare size={17} />
+            <span className="hidden sm:inline">{page.share ? "Shared" : "Share"}</span>
+          </button>
           <InboxButton count={state.inbox?.length ?? 0} onClick={() => setInboxOpen(true)} />
           <button type="button" className="icon-btn" onClick={() => setSettingsOpen(true)} aria-label="Settings" title="Settings">
             <IconSliders size={18} />
@@ -263,6 +286,16 @@ export function StartPage({ userId, email, admin = false }: { userId: string; em
                 `Imported ${result.links.toLocaleString()} links${result.notes ? ` and ${result.notes.toLocaleString()} notes` : ""} into ${result.pages} new ${result.pages === 1 ? "page" : "pages"}.`,
               );
             }}
+          />
+        )}
+
+        {shareOpen && (
+          <ShareDialog
+            key={page.id}
+            page={page}
+            onClose={() => setShareOpen(false)}
+            onChanged={() => void refresh()}
+            onError={(message) => toast(message)}
           />
         )}
 

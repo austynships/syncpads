@@ -8,6 +8,7 @@ export const DOCS_NAV = [
   { href: "/docs/guides", title: "Get the most out of it" },
   { href: "/docs/control", title: "Control and privacy" },
   { href: "/docs/import-export", title: "Import and export" },
+  { href: "/docs/sharing", title: "Share a page" },
   { href: "/docs/troubleshooting", title: "Troubleshooting" },
 ] as const;
 
