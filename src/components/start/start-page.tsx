@@ -15,6 +15,7 @@ import { InboxPanel } from "./inbox-panel";
 import { PageTabs } from "./page-tabs";
 import { SearchBar } from "./search-bar";
 import { SettingsPanel } from "./settings-panel";
+import { NewPageDialog } from "./new-page-dialog";
 import { NotificationsBell } from "./notifications-bell";
 import { ShareDialog } from "./share-dialog";
 import { mapGroup, mapItem, mapPage, removeItem, reorderBy, setPageGroups } from "./state-ops";
@@ -54,6 +55,7 @@ export function StartPage({ userId, email, admin = false }: { userId: string; em
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [inboxOpen, setInboxOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
+  const [newPageOpen, setNewPageOpen] = useState(false);
 
   // /app?inbox=1 (from an AI-suggestion notification) opens the Agent Inbox.
   useEffect(() => {
@@ -149,8 +151,8 @@ export function StartPage({ userId, email, admin = false }: { userId: string; em
     [mutate, refresh, toast],
   );
 
-  const addPage = async (name: string) => {
-    const res = await mutate(null, () => api<{ revision: number; id: string }>("POST", "/api/pages", { name }));
+  const addPage = async (name: string, template = "blank") => {
+    const res = await mutate(null, () => api<{ revision: number; id: string }>("POST", "/api/pages", { name, template }));
     if (res) {
       await refresh();
       selectPage(res.id);
@@ -251,7 +253,7 @@ export function StartPage({ userId, email, admin = false }: { userId: string; em
             pages={state.pages}
             currentId={page.id}
             onSelect={selectPage}
-            onAdd={addPage}
+            onAdd={() => setNewPageOpen(true)}
             onReorder={reorderPages}
             onRename={renamePage}
           />
@@ -320,6 +322,8 @@ export function StartPage({ userId, email, admin = false }: { userId: string; em
             }}
           />
         )}
+
+        {newPageOpen && <NewPageDialog onClose={() => setNewPageOpen(false)} onCreate={(name, template) => addPage(name, template)} />}
 
         {shareOpen && (
           <ShareDialog

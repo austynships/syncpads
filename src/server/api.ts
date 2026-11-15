@@ -108,7 +108,7 @@ export const schemas = {
     })
     .refine((v) => Object.keys(v).length > 0, "Nothing to update."),
 
-  createPage: z.object({ name }),
+  createPage: z.object({ name, template: z.string().max(40).optional() }),
   updatePage: z
     .object({
       name: name.optional(),

@@ -11,7 +11,8 @@ type Props = {
   pages: PageDTO[];
   currentId: string;
   onSelect: (id: string) => void;
-  onAdd: (name: string) => void;
+  /** Opens the New page dialog (templates or blank). */
+  onAdd: () => void;
   onReorder: (ids: string[]) => void;
   onRename: (id: string, name: string) => void;
 };
@@ -19,8 +20,6 @@ type Props = {
 /** Page tabs (SP-3): click to switch, drag to reorder, double-click to rename. */
 export function PageTabs({ pages, currentId, onSelect, onAdd, onReorder, onRename }: Props) {
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
-  const [adding, setAdding] = useState(false);
-
   function onDragEnd(e: DragEndEvent) {
     if (!e.over || e.active.id === e.over.id) return;
     const ids = pages.map((p) => p.id);
@@ -36,28 +35,9 @@ export function PageTabs({ pages, currentId, onSelect, onAdd, onReorder, onRenam
           ))}
         </SortableContext>
       </DndContext>
-      {adding ? (
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            const name = String(new FormData(e.currentTarget).get("name")).trim();
-            if (name) onAdd(name);
-            setAdding(false);
-          }}
-        >
-          <input
-            name="name"
-            placeholder="Page name"
-            autoFocus
-            className="field w-36 py-1"
-            onBlur={(e) => (e.currentTarget.value.trim() ? e.currentTarget.form?.requestSubmit() : setAdding(false))}
-          />
-        </form>
-      ) : (
-        <button type="button" className="icon-btn shrink-0" onClick={() => setAdding(true)} aria-label="Add page" title="Add page">
-          <IconPlus size={16} />
-        </button>
-      )}
+      <button type="button" className="icon-btn shrink-0" onClick={onAdd} aria-label="Add page" title="Add a page (blank or from a template)">
+        <IconPlus size={16} />
+      </button>
     </nav>
   );
 }

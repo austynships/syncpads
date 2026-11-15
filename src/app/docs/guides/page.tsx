@@ -72,6 +72,20 @@ Never suggest storing secrets in code.`}</CodeBlock>
         </ul>
       </Prose>
 
+      <H3 id="templates">Start from a template</H3>
+      <Prose>
+        <p>
+          Click <strong>+</strong> next to your page tabs to add a page. Start blank, or pick a template: <strong>Work hub</strong>,{" "}
+          <strong>Client project</strong>, <strong>Developer</strong>, <strong>Designer</strong>, <strong>Marketing</strong>,{" "}
+          <strong>Study and research</strong>, <strong>AI toolkit</strong> or <strong>Personal</strong>. Each comes with
+          groups, useful links and starter notes to fill in; change or delete anything afterwards.
+        </p>
+        <p>
+          <strong>Client project</strong> is made for working with an AI: its &ldquo;Project at a glance&rdquo; and
+          &ldquo;What we&apos;ve decided&rdquo; notes are exactly the context your AI reads before it helps with that project.
+        </p>
+      </Prose>
+
       <H2 id="smart-features">3. Turn on smart features</H2>
       <Prose>
         <p>

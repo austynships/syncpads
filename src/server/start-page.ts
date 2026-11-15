@@ -20,6 +20,7 @@ import type {
 import { normalizeUrl } from "@/lib/url";
 import { planImport, type BookmarkNode, type ImportLink } from "@/lib/bookmarks";
 import { FILE_FORMAT, FILE_VERSION, countFile, type FilePage, type SyncPadsFile } from "@/lib/syncpads-file";
+import { getTemplate } from "@/lib/page-templates";
 import { aiAvailability } from "./enrichment/ai";
 import { enqueue, requeueForAi } from "./enrichment/queue";
 import { notifyLostAccess, notifyPageActivity } from "./notifications";
@@ -564,6 +565,21 @@ export async function importBookmarks(userId: string, tree: BookmarkNode[]) {
       skipped: plan.skipped,
     };
   });
+}
+
+/**
+ * Creates a page from a template (see page-templates.ts), named as the user
+ * chose. Uses the import path, so plan limits apply and links get summaries.
+ */
+export async function createPageFromTemplate(userId: string, input: { name: string; template: string }) {
+  const template = getTemplate(input.template);
+  if (!template) throw new InvalidInputError("That template doesn't exist.");
+  const result = await importSyncPadsFile(userId, {
+    format: FILE_FORMAT,
+    version: FILE_VERSION,
+    pages: [{ ...template.page, name: input.name }],
+  });
+  return { id: result.pageIds[0], revision: result.revision };
 }
 
 // ---------- export and SyncPads-file import (SP-10) ----------
