@@ -260,7 +260,7 @@ export function StartPage({ userId, email, admin = false }: { userId: string; em
               if (result.pageIds[0]) selectPage(result.pageIds[0]);
               setSettingsOpen(false);
               toast(
-                `Imported ${result.links.toLocaleString()} links into ${result.pages} new ${result.pages === 1 ? "page" : "pages"}.`,
+                `Imported ${result.links.toLocaleString()} links${result.notes ? ` and ${result.notes.toLocaleString()} notes` : ""} into ${result.pages} new ${result.pages === 1 ? "page" : "pages"}.`,
               );
             }}
           />

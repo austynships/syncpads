@@ -19,6 +19,7 @@ import type {
 } from "@/lib/start-page-types";
 import { normalizeUrl } from "@/lib/url";
 import { planImport, type BookmarkNode, type ImportLink } from "@/lib/bookmarks";
+import { FILE_FORMAT, FILE_VERSION, countFile, type FilePage, type SyncPadsFile } from "@/lib/syncpads-file";
 import { aiAvailability } from "./enrichment/ai";
 import { enqueue, requeueForAi } from "./enrichment/queue";
 import { assertCanAddLinks, assertCanAddPages } from "./plans";
@@ -432,6 +433,140 @@ export async function importBookmarks(userId: string, tree: BookmarkNode[]) {
       links: plan.linkCount,
       skipped: plan.skipped,
     };
+  });
+}
+
+// ---------- export and SyncPads-file import (SP-10) ----------
+
+/**
+ * Everything on the user's pages (or one page) as a SyncPads file: pages,
+ * groups, links and notes in their order. Agent Inbox and trash aren't included.
+ */
+export async function exportPages(userId: string, pageId?: string): Promise<SyncPadsFile> {
+  await ensureUserSetup(userId);
+  const pageRows = await db
+    .select({ id: pages.id, name: pages.name, layout: pages.layout, hiddenFromAgents: pages.hiddenFromAgents })
+    .from(pages)
+    .where(and(eq(pages.userId, userId), pageId ? eq(pages.id, pageId) : undefined))
+    .orderBy(asc(pages.position));
+  if (pageId && pageRows.length === 0) throw new NotFoundError("Page");
+  const pageIds = pageRows.map((p) => p.id);
+
+  const groupRows = await db
+    .select({ id: groups.id, pageId: groups.pageId, name: groups.name, layout: groups.layout })
+    .from(groups)
+    .where(and(eq(groups.userId, userId), inArray(groups.pageId, pageIds)))
+    .orderBy(asc(groups.position));
+  const itemRows = groupRows.length
+    ? await db
+        .select({
+          groupId: items.groupId,
+          type: items.type,
+          url: items.url,
+          title: items.title,
+          noteBody: items.noteBody,
+          summary: itemEnrichment.summary,
+          tags: itemEnrichment.tags,
+        })
+        .from(items)
+        .leftJoin(itemEnrichment, eq(itemEnrichment.itemId, items.id))
+        .where(and(eq(items.userId, userId), eq(items.status, "active"), inArray(items.groupId, groupRows.map((g) => g.id))))
+        .orderBy(asc(items.position), asc(items.createdAt))
+    : [];
+
+  const itemsByGroup = new Map<string, FilePage["groups"][number]["items"]>();
+  for (const it of itemRows) {
+    const list = itemsByGroup.get(it.groupId) ?? [];
+    if (it.type === "link" && it.url) {
+      list.push({ type: "link", url: it.url, title: it.title, ...(it.summary ? { summary: it.summary } : {}), ...(it.tags?.length ? { tags: it.tags } : {}) });
+    } else if (it.type === "note") {
+      list.push({ type: "note", title: it.title, body: it.noteBody });
+    }
+    itemsByGroup.set(it.groupId, list);
+  }
+
+  return {
+    format: FILE_FORMAT,
+    version: FILE_VERSION,
+    exportedAt: new Date().toISOString(),
+    pages: pageRows.map((p) => ({
+      name: p.name,
+      layout: p.layout as FilePage["layout"],
+      hiddenFromAgents: p.hiddenFromAgents,
+      groups: groupRows
+        .filter((g) => g.pageId === p.id)
+        .map((g) => ({ name: g.name, layout: g.layout, items: itemsByGroup.get(g.id) ?? [] })),
+    })),
+  };
+}
+
+type TransferItem = { type: "link" | "note"; url: string | null; title: string | null; noteBody: string | null };
+
+/**
+ * Imports a SyncPads file as new pages after the existing ones, keeping page
+ * and group layouts, notes and "hidden from agents". Existing pages are never
+ * changed, and it's one transaction, so a failed import leaves nothing behind.
+ * Links get fresh summaries and tags (smart features permitting).
+ */
+export async function importSyncPadsFile(userId: string, file: SyncPadsFile) {
+  const counts = countFile(file);
+  if (counts.links + counts.notes === 0) throw new InvalidInputError("That file has no links or notes to import.");
+
+  return write(userId, async (tx) => {
+    await assertCanAddPages(userId, file.pages.length, tx);
+    let skipped = 0;
+    const prepared = file.pages.map((page) => ({
+      ...page,
+      groups: page.groups.map((group) => ({
+        ...group,
+        items: group.items.flatMap((item): TransferItem[] => {
+          if (item.type === "link") {
+            const url = normalizeUrl(item.url);
+            if (!url) {
+              skipped++;
+              return [];
+            }
+            return [{ type: "link" as const, url, title: item.title?.trim().slice(0, 512) || null, noteBody: null }];
+          }
+          const body = item.body ? sanitizeNoteHtml(item.body) : null;
+          return [{ type: "note" as const, url: null, title: item.title?.trim().slice(0, 512) || null, noteBody: body }];
+        }),
+      })),
+    }));
+    const links = prepared.reduce((n, p) => n + p.groups.reduce((m, g) => m + g.items.filter((i) => i.type === "link").length, 0), 0);
+    await assertCanAddLinks(userId, links, tx);
+
+    const [{ value }] = await tx.select({ value: max(pages.position) }).from(pages).where(eq(pages.userId, userId));
+    let pagePosition = (value ?? -1) + 1;
+    const pageIds: string[] = [];
+    const linkIds: string[] = [];
+
+    for (const page of prepared) {
+      const pageId = crypto.randomUUID();
+      pageIds.push(pageId);
+      await tx.insert(pages).values({
+        id: pageId,
+        userId,
+        name: page.name,
+        position: pagePosition++,
+        layout: page.layout ?? "auto",
+        hiddenFromAgents: page.hiddenFromAgents ?? false,
+      });
+      for (const [position, group] of page.groups.entries()) {
+        const groupId = crypto.randomUUID();
+        await tx.insert(groups).values({ id: groupId, userId, pageId, name: group.name, position, layout: group.layout ?? "list" });
+        for (let start = 0; start < group.items.length; start += 500) {
+          const rows = group.items.slice(start, start + 500).map((item, i) => {
+            const id = crypto.randomUUID();
+            if (item.type === "link") linkIds.push(id);
+            return { id, userId, groupId, ...item, position: start + i, source: "import" as const, status: "active" as const };
+          });
+          await tx.insert(items).values(rows);
+        }
+      }
+    }
+    await enqueue(tx, userId, linkIds);
+    return { pageIds, pages: prepared.length, groups: counts.groups, links, notes: counts.notes, skipped };
   });
 }
 

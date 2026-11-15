@@ -5,6 +5,7 @@
  */
 import { z, ZodError } from "zod";
 import { auth } from "@/lib/auth";
+import { syncpadsFileSchema } from "@/lib/syncpads-file";
 import { BillingUnavailableError } from "./billing";
 import { PlanLimitError } from "./plans";
 import { InvalidInputError, NotFoundError } from "./start-page";
@@ -127,7 +128,8 @@ export const schemas = {
       .optional(),
   }),
 
-  import: z.object({ tree: bookmarkTree }),
+  // A bookmark tree (SP-9) or a SyncPads export file (SP-10).
+  import: z.union([z.object({ tree: bookmarkTree }), z.object({ file: syncpadsFileSchema })]),
   updateGroup: z
     .object({ name: name.optional(), layout: z.enum(["list", "tiles"]).optional() })
     .refine((v) => Object.keys(v).length > 0, "Nothing to update."),

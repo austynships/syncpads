@@ -6,7 +6,7 @@ import Link from "next/link";
 import { IconBot, IconEyeOff, IconMonitor, IconMoon, IconSun, IconTrash, IconX } from "@/components/icons";
 import type { PageDTO, PageLayout, SettingsDTO, Theme } from "@/lib/start-page-types";
 import { PRESET_COLORS, PRESET_WALLPAPERS } from "@/lib/wallpapers";
-import { ImportBookmarks } from "./import-bookmarks";
+import { ExportPages, ImportBookmarks } from "./import-bookmarks";
 
 type Props = {
   settings: SettingsDTO;
@@ -20,7 +20,7 @@ type Props = {
   onPageLayout: (layout: PageLayout) => void;
   onRenamePage: (name: string) => void;
   onDeletePage: () => void;
-  onImported: (result: { pageIds: string[]; links: number; pages: number }) => void;
+  onImported: (result: { pageIds: string[]; links: number; pages: number; notes?: number }) => void;
 };
 
 const THEMES: { value: Theme; label: string; icon: typeof IconSun }[] = [
@@ -146,6 +146,10 @@ export function SettingsPanel(p: Props) {
 
           <section>
             <ImportBookmarks onImported={p.onImported} />
+          </section>
+
+          <section>
+            <ExportPages page={p.page} />
           </section>
 
           <section>
