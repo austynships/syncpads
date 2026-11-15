@@ -122,7 +122,7 @@ export default function ControlPage() {
         </p>
       </Prose>
 
-      <NextPage href="/docs/troubleshooting" title="Troubleshooting" />
+      <NextPage href="/docs/import-export" title="Import and export" />
     </>
   );
 }
