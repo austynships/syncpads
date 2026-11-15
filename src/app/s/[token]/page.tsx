@@ -19,7 +19,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   if (!page) return { title: "Page not found", robots: { index: false, follow: false } };
   const description = `${page.ownerName} shared ${plural(page.links, "link", "links")} with you on SyncPads.`;
   return {
-    title: `${page.name} · Shared on SyncPads`,
+    title: { absolute: `${page.name} · Shared on SyncPads` },
     description,
     robots: { index: false, follow: false },
     openGraph: { title: page.name, description, siteName: "SyncPads", type: "website" },
