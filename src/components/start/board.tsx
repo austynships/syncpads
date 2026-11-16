@@ -57,7 +57,7 @@ type DragData = { type: "group"; groupId: string } | { type: "item"; itemId: str
 const groupKey = (id: string) => `group:${id}`;
 const itemKey = (id: string) => `item:${id}`;
 
-export function PageBoard({ page, actions }: { page: PageDTO; actions: BoardActions }) {
+export function PageBoard({ page, actions, onAddWidget }: { page: PageDTO; actions: BoardActions; onAddWidget?: () => void }) {
   // While dragging we work on a copy, so the drop can be saved in one go.
   const [working, setWorking] = useState<GroupDTO[] | null>(null);
   const [active, setActive] = useState<DragData | null>(null);
@@ -169,6 +169,16 @@ export function PageBoard({ page, actions }: { page: PageDTO; actions: BoardActi
             <GroupCard key={g.id} group={g} actions={actions} />
           ))}
           <AddGroup onAdd={(name) => actions.addGroup(page.id, name)} />
+          {onAddWidget && (
+            <button
+              type="button"
+              onClick={onAddWidget}
+              className="flex items-center justify-center gap-1.5 rounded-2xl border-2 border-dashed border-slate-300 bg-white/40 p-5 text-sm font-medium text-slate-500 transition hover:border-sync-500/60 hover:text-slate-900 dark:border-slate-700 dark:bg-white/5 dark:hover:text-white"
+            >
+              <IconPlus size={16} />
+              Add widget
+            </button>
+          )}
         </div>
       </SortableContext>
       <DragOverlay>

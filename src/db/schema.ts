@@ -357,7 +357,8 @@ export const itemEmbeddings = mysqlTable(
   (t) => [index("item_embeddings_user_id_idx").on(t.userId)],
 );
 
-export type RssWidgetConfig = { feedUrl: string };
+/** Settings for a widget; the shape depends on its type (see src/lib/widgets.ts). */
+export type WidgetConfigJson = Record<string, unknown>;
 
 // Notes are `items` rows (type = note) shown inside groups, so widgets are RSS only.
 export const widgets = mysqlTable(
@@ -368,8 +369,8 @@ export const widgets = mysqlTable(
     pageId: varchar("page_id", { length: 36 })
       .notNull()
       .references(() => pages.id, { onDelete: "cascade" }),
-    type: mysqlEnum("type", ["rss"]).notNull(),
-    config: json<RssWidgetConfig>("config"),
+    type: mysqlEnum("type", ["rss", "clock", "weather", "todo", "countdown"]).notNull(),
+    config: json<WidgetConfigJson>("config"),
     position: int("position").notNull().default(0),
     createdAt: createdAt(),
     updatedAt: updatedAt(),

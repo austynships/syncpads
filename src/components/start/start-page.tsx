@@ -17,7 +17,10 @@ import { SettingsPanel } from "./settings-panel";
 import { AgentsView } from "@/app/agents/agents-view";
 import { AccountSettings } from "@/app/settings/account-settings";
 import { AppModal } from "./app-modal";
+import type { WidgetDTO } from "@/lib/widgets";
 import { NewPageDialog } from "./new-page-dialog";
+import { WidgetDialog } from "./widget-dialog";
+import { WidgetsRow, type WidgetActions } from "./widgets";
 import { NotificationsBell } from "./notifications-bell";
 import { ShareDialog } from "./share-dialog";
 import { mapGroup, mapItem, mapPage, removeItem, reorderBy, setPageGroups } from "./state-ops";
@@ -58,6 +61,8 @@ export function StartPage({ userId, email, name = "", admin = false }: { userId:
   const [inboxOpen, setInboxOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const [newPageOpen, setNewPageOpen] = useState(false);
+  // Add widget (no widget) or edit one.
+  const [widgetDialog, setWidgetDialog] = useState<{ widget?: WidgetDTO } | null>(null);
   // Account settings and Agents open as windows over the start page.
   const [modal, setModal] = useState<"account" | "agents" | null>(null);
 
@@ -168,6 +173,26 @@ export function StartPage({ userId, email, name = "", admin = false }: { userId:
     mutate((s) => mapPage(s, id, (p) => ({ ...p, name })), () => api("PATCH", `/api/pages/${id}`, { name }));
   const setPageLayout = (id: string, layout: PageLayout) =>
     mutate((s) => mapPage(s, id, (p) => ({ ...p, layout })), () => api("PATCH", `/api/pages/${id}`, { layout }));
+  /** Widgets on a page: changes show at once and are saved in the background. */
+  const widgetActions = (pageId: string): WidgetActions => ({
+    update: (widgetId, config) =>
+      mutate(
+        (s) => mapPage(s, pageId, (p) => ({ ...p, widgets: p.widgets.map((w) => (w.id === widgetId ? { ...w, config: config as WidgetDTO["config"] } : w)) })),
+        () => api("PATCH", `/api/widgets/${widgetId}`, { config }),
+      ),
+    remove: (widgetId) =>
+      mutate(
+        (s) => mapPage(s, pageId, (p) => ({ ...p, widgets: p.widgets.filter((w) => w.id !== widgetId) })),
+        () => api("DELETE", `/api/widgets/${widgetId}`),
+      ),
+    reorder: (ids) =>
+      mutate(
+        (s) => mapPage(s, pageId, (p) => ({ ...p, widgets: ids.map((id) => p.widgets.find((w) => w.id === id)!).filter(Boolean) })),
+        () => api("PUT", "/api/widgets/order", { pageId, ids }),
+      ),
+    edit: (widget) => setWidgetDialog({ widget }),
+  });
+
   /** Leave a page someone else shared with you: it disappears from your workspace. */
   const leavePage = async (target: { id: string; name: string }) => {
     try {
@@ -305,7 +330,8 @@ export function StartPage({ userId, email, name = "", admin = false }: { userId:
         </header>
 
         <main className="p-4 md:p-6">
-          <PageBoard key={page.id} page={page} actions={actions} />
+          <WidgetsRow key={`w-${page.id}`} widgets={page.widgets ?? []} actions={widgetActions(page.id)} />
+          <PageBoard key={page.id} page={page} actions={actions} onAddWidget={() => setWidgetDialog({})} />
         </main>
 
         {settingsOpen && (
@@ -352,6 +378,19 @@ export function StartPage({ userId, email, name = "", admin = false }: { userId:
           >
             <AgentsView />
           </AppModal>
+        )}
+
+        {widgetDialog && (
+          <WidgetDialog
+            widget={widgetDialog.widget}
+            onClose={() => setWidgetDialog(null)}
+            onSave={async (type, config) => {
+              // Errors (a feed that can't be found, say) show in the dialog.
+              if (widgetDialog.widget) await api("PATCH", `/api/widgets/${widgetDialog.widget.id}`, { config });
+              else await api("POST", "/api/widgets", { pageId: page.id, type, config });
+              await refresh();
+            }}
+          />
         )}
 
         {newPageOpen && <NewPageDialog onClose={() => setNewPageOpen(false)} onCreate={(name, template) => addPage(name, template)} />}

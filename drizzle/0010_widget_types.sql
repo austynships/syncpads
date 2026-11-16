@@ -1,0 +1,1 @@
+ALTER TABLE `widgets` MODIFY COLUMN `type` enum('rss','clock','weather','todo','countdown') NOT NULL;

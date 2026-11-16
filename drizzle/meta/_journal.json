@@ -71,6 +71,13 @@
       "when": 1794784288945,
       "tag": "0009_notifications",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "5",
+      "when": 1794787647524,
+      "tag": "0010_widget_types",
+      "breakpoints": true
     }
   ]
 }

@@ -5,7 +5,8 @@
  */
 import { and, asc, eq, inArray, isNotNull, max, or, sql } from "drizzle-orm";
 import { db, type Db } from "@/db";
-import { activityLog, agents, groups, itemEnrichment, items, pageMembers, pages, userSettings, users, type Wallpaper } from "@/db/schema";
+import { activityLog, agents, groups, itemEnrichment, items, pageMembers, pages, userSettings, users, widgets, type Wallpaper } from "@/db/schema";
+import type { AnyWidgetConfig, WidgetDTO } from "@/lib/widgets";
 import { sanitizeNoteHtml } from "@/lib/sanitize";
 import type {
   GroupDTO,
@@ -205,6 +206,15 @@ export async function getState(userId: string): Promise<StateDTO> {
   const groupRows = allPageIds.length
     ? await db.select().from(groups).where(inArray(groups.pageId, allPageIds)).orderBy(asc(groups.position))
     : [];
+  const widgetRows = allPageIds.length
+    ? await db.select().from(widgets).where(inArray(widgets.pageId, allPageIds)).orderBy(asc(widgets.position))
+    : [];
+  const widgetsByPage = new Map<string, WidgetDTO[]>();
+  for (const w of widgetRows) {
+    const list = widgetsByPage.get(w.pageId) ?? [];
+    list.push({ id: w.id, type: w.type, config: (w.config ?? {}) as AnyWidgetConfig, position: w.position });
+    widgetsByPage.set(w.pageId, list);
+  }
   const itemRows = groupRows.length
     ? await db
         .select()
@@ -273,6 +283,7 @@ export async function getState(userId: string): Promise<StateDTO> {
             ? { token: p.shareToken, role: p.shareRole, includeNotes: p.shareNotes, copies: p.shareCopies, editors: editorCounts.get(p.id) ?? 0 }
             : null,
           groups: groupsByPage.get(p.id) ?? [],
+          widgets: widgetsByPage.get(p.id) ?? [],
         }),
       ),
       ...joined.map(
@@ -287,6 +298,7 @@ export async function getState(userId: string): Promise<StateDTO> {
           // Editors can pass the edit link on, but only the owner changes sharing.
           share: p.shareToken ? { token: p.shareToken, role: p.shareRole, includeNotes: p.shareNotes, copies: p.shareCopies, editors: 0 } : null,
           groups: groupsByPage.get(p.id) ?? [],
+          widgets: widgetsByPage.get(p.id) ?? [],
         }),
       ),
     ].sort((a, b) => a.position - b.position),

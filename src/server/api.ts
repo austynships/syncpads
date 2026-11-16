@@ -119,6 +119,9 @@ export const schemas = {
   reorderPages: z.object({ ids }),
   sharePage: z.object({ includeNotes: z.boolean().optional(), role: z.enum(["view", "edit"]).optional() }),
   removeEditor: z.object({ userId: id }),
+  createWidget: z.object({ pageId: id, type: z.enum(["clock", "weather", "todo", "countdown", "rss"]), config: z.record(z.string(), z.unknown()) }),
+  updateWidget: z.object({ config: z.record(z.string(), z.unknown()) }),
+  reorderWidgets: z.object({ pageId: id, ids: z.array(id).max(50) }),
   markRead: z.object({ ids: z.array(z.string().max(40)).max(100).optional(), all: z.boolean().optional() }),
   announcement: z.object({
     title: z.string().trim().min(1, "Add a title.").max(120, "Keep the title under 120 characters."),

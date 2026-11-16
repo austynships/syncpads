@@ -86,6 +86,17 @@ Never suggest storing secrets in code.`}</CodeBlock>
         </p>
       </Prose>
 
+      <H3 id="widgets">Add widgets</H3>
+      <Prose>
+        <p>
+          Click <strong>Add widget</strong> at the end of a page to put live cards at the top of it: a <strong>Clock</strong>{" "}
+          (any time zone), <strong>Weather</strong> for any place, a <strong>To-do list</strong>, a <strong>Countdown</strong> to a
+          date, or a <strong>News feed</strong> from any blog or news site (paste the site&apos;s address and SyncPads finds its
+          feed). Drag widgets to reorder them; hover one to edit or remove it. A page can have up to 12.
+        </p>
+        <p>Widgets on a shared page are shared too: everyone who can edit the page sees and changes the same ones.</p>
+      </Prose>
+
       <H2 id="smart-features">3. Turn on smart features</H2>
       <Prose>
         <p>

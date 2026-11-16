@@ -25,6 +25,8 @@ export type GroupDTO = {
   items: ItemDTO[];
 };
 
+import type { WidgetDTO } from "./widgets";
+
 export type PageShareDTO = {
   token: string;
   /** "view": read-only link. "edit": people who open it can join and edit. */
@@ -45,6 +47,8 @@ export type PageDTO = {
   access: "owner" | "editor";
   /** First name of the owner, for pages shared with the user; null for their own. */
   ownerName: string | null;
+  /** Live cards at the top of the page (clock, weather, to-do...). */
+  widgets: WidgetDTO[];
   /** Public link (/s/<token>) when the page is shared; null otherwise. */
   share: PageShareDTO | null;
   groups: GroupDTO[];
