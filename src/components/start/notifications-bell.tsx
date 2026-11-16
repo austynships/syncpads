@@ -28,7 +28,7 @@ function ago(iso: string) {
 }
 
 function TypeIcon({ type }: { type: string }) {
-  const Icon = type === "announcement" ? IconMegaphone : type === "agent_suggestion" ? IconBot : IconUsers;
+  const Icon = type === "announcement" || type === "gallery" ? IconMegaphone : type === "agent_suggestion" ? IconBot : IconUsers;
   const tone =
     type === "announcement"
       ? "bg-sync-500/15 text-sync-600 dark:text-sync-300"

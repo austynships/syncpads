@@ -26,7 +26,8 @@ export type NotificationType =
   | "page_removed"
   | "page_unshared"
   | "page_deleted"
-  | "agent_suggestion";
+  | "agent_suggestion"
+  | "gallery";
 
 export type NotificationDTO = {
   /** "n_<id>" for personal notifications, "a_<id>" for announcements. */

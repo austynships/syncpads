@@ -124,3 +124,6 @@ export const IconBell = (p: IconProps) => (
 export const IconMegaphone = (p: IconProps) => (
   <Icon {...p}><path d="M4 10v4a1 1 0 001 1h2l7 4V5L7 9H5a1 1 0 00-1 1z" /><path d="M17.5 9a4 4 0 010 6" /><path d="M8 15l1 5" /></Icon>
 );
+export const IconSparkle = (p: IconProps) => (
+  <Icon {...p}><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9L12 3z" /><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8L19 15z" /></Icon>
+);

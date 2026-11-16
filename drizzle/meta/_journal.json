@@ -78,6 +78,13 @@
       "when": 1794787647524,
       "tag": "0010_widget_types",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "5",
+      "when": 1794789442608,
+      "tag": "0011_widget_gallery",
+      "breakpoints": true
     }
   ]
 }

@@ -369,7 +369,7 @@ export const widgets = mysqlTable(
     pageId: varchar("page_id", { length: 36 })
       .notNull()
       .references(() => pages.id, { onDelete: "cascade" }),
-    type: mysqlEnum("type", ["rss", "clock", "weather", "todo", "countdown"]).notNull(),
+    type: mysqlEnum("type", ["rss", "clock", "weather", "todo", "countdown", "custom"]).notNull(),
     config: json<WidgetConfigJson>("config"),
     position: int("position").notNull().default(0),
     createdAt: createdAt(),
@@ -556,4 +556,46 @@ export const announcementReads = mysqlTable(
     readAt: createdAt(),
   },
   (t) => [primaryKey({ columns: [t.announcementId, t.userId] }), index("announcement_reads_user_id_idx").on(t.userId)],
+);
+
+// ---------- Custom widgets: the public gallery ----------
+
+/**
+ * A custom widget someone published to the gallery (built with AI). It's a
+ * copy of their widget at the time: changing their own widget later doesn't
+ * change it. Only "published" ones are listed; an admin approves each one
+ * ("pending" -> "published"), and enough reports send it back to "pending".
+ */
+export const galleryWidgets = mysqlTable(
+  "gallery_widgets",
+  {
+    id: id(),
+    userId: userId(), // the author
+    name: varchar("name", { length: 60 }).notNull(),
+    description: varchar("description", { length: 200 }).notNull().default(""),
+    html: mediumtext("html").notNull(),
+    prompt: text("prompt"),
+    status: mysqlEnum("status", ["pending", "published", "rejected", "removed"]).notNull().default("pending"),
+    reviewNote: varchar("review_note", { length: 300 }),
+    installs: int("installs").notNull().default(0),
+    reports: int("reports").notNull().default(0),
+    reviewedAt: datetime("reviewed_at", { mode: "date", fsp: 3 }),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [index("gallery_widgets_status_idx").on(t.status, t.installs), index("gallery_widgets_user_id_idx").on(t.userId)],
+);
+
+/** One report per person per gallery widget. */
+export const galleryReports = mysqlTable(
+  "gallery_reports",
+  {
+    widgetId: varchar("widget_id", { length: 36 })
+      .notNull()
+      .references(() => galleryWidgets.id, { onDelete: "cascade" }),
+    userId: userId(),
+    reason: varchar("reason", { length: 300 }),
+    createdAt: createdAt(),
+  },
+  (t) => [primaryKey({ columns: [t.widgetId, t.userId] }), index("gallery_reports_user_id_idx").on(t.userId)],
 );

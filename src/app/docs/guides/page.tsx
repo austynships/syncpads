@@ -97,6 +97,26 @@ Never suggest storing secrets in code.`}</CodeBlock>
         <p>Widgets on a shared page are shared too: everyone who can edit the page sees and changes the same ones.</p>
       </Prose>
 
+      <H3 id="custom-widgets">Build your own widgets</H3>
+      <Prose>
+        <p>
+          In <strong>Add widget</strong>, choose <strong>Create with AI</strong> and describe what you want: &ldquo;a Pomodoro
+          timer that counts today&apos;s sessions&rdquo;, &ldquo;a habit tracker for 3 habits&rdquo;, &ldquo;a tip calculator&rdquo;.
+          You get a live preview in about 30 seconds; ask for changes in plain words (&ldquo;bigger buttons&rdquo;, &ldquo;add a
+          sound&rdquo;) until it&apos;s right, then add it. Building widgets is part of <strong>Pro</strong> (up to 30 builds a day).
+        </p>
+        <p>
+          Custom widgets run in a sandbox: they can&apos;t see your account, your other pages or anything else in SyncPads. They
+          can remember things (your habits, your scores) on their own.
+        </p>
+        <p>
+          <strong>Share it in the gallery:</strong> edit your widget and choose <strong>Publish to gallery</strong>. Every widget is
+          reviewed before it&apos;s listed. Anyone, on any plan, can open <strong>Widget gallery</strong> in Add widget and add a copy
+          of a published widget to their page; your changes later don&apos;t change their copy. If something in the gallery looks
+          wrong, click <strong>Report</strong>.
+        </p>
+      </Prose>
+
       <H2 id="smart-features">3. Turn on smart features</H2>
       <Prose>
         <p>

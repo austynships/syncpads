@@ -95,6 +95,9 @@ describe.skipIf(!url)("account deletion", () => {
     // Dated long ago so no other test user is in its audience.
     await db.insert(s.announcements).values({ id: announcementId, title: "x", createdAt: new Date("2000-01-01") });
     await db.insert(s.announcementReads).values({ announcementId, userId });
+    const galleryId = crypto.randomUUID();
+    await db.insert(s.galleryWidgets).values({ id: galleryId, userId, name: "W", html: "<p>w</p>" });
+    await db.insert(s.galleryReports).values({ widgetId: galleryId, userId });
     await db.insert(s.activityLog).values({ userId, agentId, itemId, action: "add_link", after: { url: "x" } });
     // Phase 5: an OAuth client is shared (not user data), but codes and tokens belong to the user.
     const clientId = `test_${userId.slice(0, 8)}`;

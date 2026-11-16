@@ -382,6 +382,8 @@ export function StartPage({ userId, email, name = "", admin = false }: { userId:
 
         {widgetDialog && (
           <WidgetDialog
+            pageId={page.id}
+            onChanged={() => refresh()}
             widget={widgetDialog.widget}
             onClose={() => setWidgetDialog(null)}
             onSave={async (type, config) => {

@@ -14,6 +14,7 @@ import {
   type WidgetDTO,
 } from "@/lib/widgets";
 import { api } from "./api";
+import { CustomWidgetFrame } from "./custom-widget-frame";
 
 export type WidgetActions = {
   update: (widgetId: string, config: Record<string, unknown>) => void;
@@ -104,6 +105,14 @@ export function WidgetView({
       {widget.type === "todo" && <Todo widget={widget} onChange={onChange} />}
       {widget.type === "countdown" && <Countdown config={widget.config as WidgetConfig<"countdown">} />}
       {widget.type === "rss" && <Feed dataUrl={dataUrl} config={widget.config as WidgetConfig<"rss">} />}
+      {widget.type === "custom" && (
+        <CustomWidgetFrame
+          html={(widget.config as WidgetConfig<"custom">).html}
+          data={(widget.config as WidgetConfig<"custom">).data}
+          title={widgetTitle(widget)}
+          onSave={onChange ? (data) => onChange({ ...(widget.config as WidgetConfig<"custom">), data }) : undefined}
+        />
+      )}
     </>
   );
 }
@@ -114,6 +123,7 @@ export function widgetTitle(w: WidgetDTO) {
 
 function defaultTitle(w: WidgetDTO) {
   if (w.type === "weather") return (w.config as WidgetConfig<"weather">).place.split(",")[0] || "Weather";
+  if (w.type === "custom") return (w.config as WidgetConfig<"custom">).name || "Widget";
   if (w.type === "clock") {
     const tz = (w.config as WidgetConfig<"clock">).timeZone;
     return tz ? tz.split("/").pop()!.replace(/_/g, " ") : "Clock";

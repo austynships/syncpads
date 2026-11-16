@@ -5,12 +5,17 @@
  */
 import { z } from "zod";
 
-export const WIDGET_TYPES = ["clock", "weather", "todo", "countdown", "rss"] as const;
+export const WIDGET_TYPES = ["clock", "weather", "todo", "countdown", "rss", "custom"] as const;
+/** Built-in types, offered as cards in the Add widget dialog (custom ones are made with AI or come from the gallery). */
+export const BUILT_IN_WIDGETS = ["clock", "weather", "todo", "countdown", "rss"] as const;
 export type WidgetType = (typeof WIDGET_TYPES)[number];
 
 /** Most widgets one page can have. */
 export const MAX_WIDGETS_PER_PAGE = 12;
 export const MAX_TODOS = 50;
+/** Size limits for custom widgets: their code, and the data they save. */
+export const MAX_CUSTOM_HTML = 60_000;
+export const MAX_CUSTOM_DATA = 20_000;
 
 const label = z.string().trim().max(60).optional();
 
@@ -53,6 +58,21 @@ export const widgetConfigSchemas = {
       .refine((u) => /^https?:\/\//i.test(u), "Enter the feed's full address, starting with https://"),
     limit: z.number().int().min(3).max(15).default(6),
   }),
+  custom: z.object({
+    label,
+    name: z.string().trim().min(1).max(60),
+    /** The widget's markup, styles and script; runs in a sandboxed frame. */
+    html: z.string().min(1).max(MAX_CUSTOM_HTML, "That widget is too big."),
+    /** What the person asked for, so they can refine it later. */
+    prompt: z.string().max(4000).optional(),
+    /** Set when it was added from the gallery (copies can't be republished). */
+    sourceGalleryId: z.string().max(36).optional(),
+    /** What the widget saved with syncpads.save(). */
+    data: z
+      .unknown()
+      .optional()
+      .refine((d) => d === undefined || JSON.stringify(d).length <= MAX_CUSTOM_DATA, "This widget is trying to save too much data."),
+  }),
 } as const;
 
 export type WidgetConfig<T extends WidgetType = WidgetType> = z.infer<(typeof widgetConfigSchemas)[T]>;
@@ -80,6 +100,7 @@ export const WIDGET_INFO: Record<WidgetType, { name: string; emoji: string; desc
   todo: { name: "To-do list", emoji: "✅", description: "A quick checklist for the things on this page." },
   countdown: { name: "Countdown", emoji: "⏳", description: "Days left until a launch, deadline or trip." },
   rss: { name: "News feed", emoji: "📰", description: "The latest posts from a blog or news site (RSS or Atom)." },
+  custom: { name: "Custom widget", emoji: "✨", description: "Describe any widget and AI builds it for you." },
 };
 
 /** What each widget type starts with, before the person changes it. */
@@ -95,6 +116,8 @@ export function defaultConfig(type: WidgetType): Record<string, unknown> {
       return { place: "", latitude: 0, longitude: 0, units: "f" };
     case "rss":
       return { feedUrl: "", limit: 6 };
+    case "custom":
+      return { name: "", html: "" };
   }
 }
 
