@@ -102,6 +102,12 @@ export async function reorderWidgets(actorId: string, pageId: string, ids: strin
 export async function widgetData(actorId: string, widgetId: string): Promise<WeatherData | FeedData> {
   const w = await widgetPage(widgetId);
   await pageAccess(db, actorId, w.pageId, "Widget");
+  return loadWidgetData(widgetId, w);
+}
+
+/** Loads the data; the caller has already checked the viewer may see the widget. */
+export async function loadWidgetData(widgetId: string, w?: Awaited<ReturnType<typeof widgetPage>>): Promise<WeatherData | FeedData> {
+  w ??= await widgetPage(widgetId);
   if (w.type === "weather") return weather(parseWidgetConfig("weather", w.config) as WidgetConfig<"weather">);
   if (w.type === "rss") return feed(widgetId, parseWidgetConfig("rss", w.config) as WidgetConfig<"rss">);
   throw new InvalidInputError("This widget doesn't load data.");

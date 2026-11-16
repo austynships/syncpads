@@ -47,6 +47,10 @@ export default function SharingPage() {
       <Prose>
         <ul>
           <li>The page&apos;s name, its groups and links, in the same order and layout as yours.</li>
+          <li>
+            Its widgets, live: clocks, weather, countdowns and news feeds. To-do lists count as notes, so they only show when
+            you include notes.
+          </li>
           <li>Your first name (&ldquo;Shared by Alex&rdquo;), and nothing else about you: no email or account details.</li>
           <li>
             Notes only if you turn on <strong>Include notes</strong>. It&apos;s off by default, because notes can hold

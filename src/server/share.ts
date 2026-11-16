@@ -15,9 +15,11 @@
 import { randomBytes } from "node:crypto";
 import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { groups, items, pageMembers, pages, userSettings, users, type Wallpaper } from "@/db/schema";
+import { groups, items, pageMembers, pages, userSettings, users, widgets, type Wallpaper } from "@/db/schema";
+import type { AnyWidgetConfig, FeedData, WeatherData, WidgetDTO } from "@/lib/widgets";
 import { FILE_FORMAT, FILE_VERSION, type SyncPadsFile } from "@/lib/syncpads-file";
 import { notifyJoined, notifyLeft, notifyLostAccess } from "./notifications";
+import { loadWidgetData } from "./widgets";
 import { InvalidInputError, NotFoundError, importSyncPadsFile, nextPagePosition, pageAccess, write } from "./start-page";
 
 export type ShareRole = "view" | "edit";
@@ -179,6 +181,8 @@ export type SharedPage = {
   theme: "system" | "light" | "dark";
   wallpaper: Wallpaper | null;
   groups: { name: string; layout: "list" | "tiles"; items: SharedItem[] }[];
+  /** Widgets at the top of the page. To-do lists count as notes: shown only when notes are included. */
+  widgets: WidgetDTO[];
   links: number;
   notes: number;
 };
@@ -249,7 +253,13 @@ export async function getSharedPage(token: string): Promise<SharedPage | null> {
     }))
     .filter((g) => g.items.length > 0);
 
+  const widgetRows = await db.select().from(widgets).where(eq(widgets.pageId, page.id)).orderBy(asc(widgets.position));
+  const sharedWidgets: WidgetDTO[] = widgetRows
+    .filter((w) => w.type !== "todo" || page.shareNotes)
+    .map((w) => ({ id: w.id, type: w.type, config: (w.config ?? {}) as AnyWidgetConfig, position: w.position }));
+
   return {
+    widgets: sharedWidgets,
     pageId: page.id,
     ownerId: page.userId,
     name: page.name,
@@ -291,6 +301,14 @@ export async function copySharedPage(userId: string, token: string) {
     await db.update(pages).set({ shareCopies: sql`${pages.shareCopies} + 1` }).where(eq(pages.id, page.pageId));
   }
   return result;
+}
+
+/** Weather or feed data for a widget on a shared page, for visitors who may not be signed in. */
+export async function sharedWidgetData(token: string, widgetId: string): Promise<WeatherData | FeedData> {
+  const page = await getSharedPage(token);
+  const widget = page?.widgets.find((w) => w.id === widgetId);
+  if (!widget || (widget.type !== "weather" && widget.type !== "rss")) throw new NotFoundError("Widget");
+  return loadWidgetData(widgetId);
 }
 
 /** True when `host` is one of the links on the shared page (so the favicon proxy can't be used for anything else). */

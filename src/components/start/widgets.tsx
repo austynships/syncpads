@@ -49,7 +49,7 @@ export function WidgetsRow({ widgets, actions }: { widgets: WidgetDTO[]; actions
 function WidgetCard({ widget, actions }: { widget: WidgetDTO; actions: WidgetActions }) {
   const sortable = useSortable({ id: widget.id });
   const style = { transform: CSS.Translate.toString(sortable.transform), transition: sortable.transition };
-  const title = (widget.config as { label?: string }).label || defaultTitle(widget);
+  const title = widgetTitle(widget);
 
   return (
     <section ref={sortable.setNodeRef} style={style} className={`card group/widget p-3.5 ${sortable.isDragging ? "opacity-40" : ""}`}>
@@ -79,13 +79,37 @@ function WidgetCard({ widget, actions }: { widget: WidgetDTO; actions: WidgetAct
           </button>
         </span>
       </header>
-      {widget.type === "clock" && <Clock config={widget.config as WidgetConfig<"clock">} />}
-      {widget.type === "weather" && <Weather id={widget.id} config={widget.config as WidgetConfig<"weather">} />}
-      {widget.type === "todo" && <Todo widget={widget} onChange={(config) => actions.update(widget.id, config)} />}
-      {widget.type === "countdown" && <Countdown config={widget.config as WidgetConfig<"countdown">} />}
-      {widget.type === "rss" && <Feed id={widget.id} config={widget.config as WidgetConfig<"rss">} />}
+      <WidgetView widget={widget} dataUrl={`/api/widgets/${widget.id}/data`} onChange={(config) => actions.update(widget.id, config)} />
     </section>
   );
+}
+
+/**
+ * A widget's contents. `dataUrl` is where weather and feed widgets load from
+ * (share links use their own); without `onChange` a to-do list is read only.
+ */
+export function WidgetView({
+  widget,
+  dataUrl,
+  onChange,
+}: {
+  widget: WidgetDTO;
+  dataUrl: string;
+  onChange?: (config: Record<string, unknown>) => void;
+}) {
+  return (
+    <>
+      {widget.type === "clock" && <Clock config={widget.config as WidgetConfig<"clock">} />}
+      {widget.type === "weather" && <Weather dataUrl={dataUrl} config={widget.config as WidgetConfig<"weather">} />}
+      {widget.type === "todo" && <Todo widget={widget} onChange={onChange} />}
+      {widget.type === "countdown" && <Countdown config={widget.config as WidgetConfig<"countdown">} />}
+      {widget.type === "rss" && <Feed dataUrl={dataUrl} config={widget.config as WidgetConfig<"rss">} />}
+    </>
+  );
+}
+
+export function widgetTitle(w: WidgetDTO) {
+  return (w.config as { label?: string }).label || defaultTitle(w);
 }
 
 function defaultTitle(w: WidgetDTO) {
@@ -121,13 +145,13 @@ function Clock({ config }: { config: WidgetConfig<"clock"> }) {
 }
 
 /** Loads a widget's live data, refreshing every `everyMs`. */
-function useWidgetData<T>(id: string, everyMs: number, key: string) {
+function useWidgetData<T>(url: string, everyMs: number, key: string) {
   const [data, setData] = useState<T | null>(null);
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {
     let alive = true;
     const load = () =>
-      api<T>("GET", `/api/widgets/${id}/data`)
+      api<T>("GET", url)
         .then((d) => alive && (setData(d), setError(null)))
         .catch((err) => alive && setError((err as Error).message));
     void load();
@@ -136,12 +160,12 @@ function useWidgetData<T>(id: string, everyMs: number, key: string) {
       alive = false;
       clearInterval(t);
     };
-  }, [id, everyMs, key]);
+  }, [url, everyMs, key]);
   return { data, error };
 }
 
-function Weather({ id, config }: { id: string; config: WidgetConfig<"weather"> }) {
-  const { data, error } = useWidgetData<WeatherData>(id, 15 * 60_000, `${config.latitude},${config.longitude},${config.units}`);
+function Weather({ dataUrl, config }: { dataUrl: string; config: WidgetConfig<"weather"> }) {
+  const { data, error } = useWidgetData<WeatherData>(dataUrl, 15 * 60_000, `${config.latitude},${config.longitude},${config.units}`);
   if (error) return <p className="px-1 pb-1 text-sm text-slate-500 dark:text-slate-400">{error}</p>;
   if (!data) return <div className="h-24 animate-pulse rounded-lg bg-slate-900/[0.04] dark:bg-white/5" />;
   const now = describeWeather(data.current.code, data.current.isDay);
@@ -186,11 +210,13 @@ function Weather({ id, config }: { id: string; config: WidgetConfig<"weather"> }
   );
 }
 
-function Todo({ widget, onChange }: { widget: WidgetDTO; onChange: (config: Record<string, unknown>) => void }) {
+function Todo({ widget, onChange }: { widget: WidgetDTO; onChange?: (config: Record<string, unknown>) => void }) {
   const config = widget.config as WidgetConfig<"todo">;
   const items = config.items ?? [];
   const [text, setText] = useState("");
-  const save = (next: typeof items) => onChange({ ...config, items: next });
+  const readOnly = !onChange;
+  const save = (next: typeof items) => onChange?.({ ...config, items: next });
+  if (readOnly && items.length === 0) return <p className="px-1 pb-1 text-sm text-slate-500 dark:text-slate-400">Nothing on the list.</p>;
   const left = items.filter((i) => !i.done).length;
 
   return (
@@ -202,6 +228,7 @@ function Todo({ widget, onChange }: { widget: WidgetDTO; onChange: (config: Reco
               <input
                 type="checkbox"
                 checked={item.done}
+                disabled={readOnly}
                 onChange={() => save(items.map((i) => (i.id === item.id ? { ...i, done: !i.done } : i)))}
                 className="h-4 w-4 shrink-0 accent-sync-600"
                 aria-label={item.text}
@@ -209,18 +236,21 @@ function Todo({ widget, onChange }: { widget: WidgetDTO; onChange: (config: Reco
               <span className={`min-w-0 flex-1 break-words text-sm ${item.done ? "text-slate-400 line-through" : "text-slate-800 dark:text-slate-200"}`}>
                 {item.text}
               </span>
-              <button
-                type="button"
-                className="shrink-0 text-slate-300 opacity-0 hover:text-red-600 group-hover/todo:opacity-100 dark:text-slate-600"
-                onClick={() => save(items.filter((i) => i.id !== item.id))}
-                aria-label={`Delete ${item.text}`}
-              >
-                <IconX size={13} />
-              </button>
+              {!readOnly && (
+                <button
+                  type="button"
+                  className="shrink-0 text-slate-300 opacity-0 hover:text-red-600 group-hover/todo:opacity-100 dark:text-slate-600"
+                  onClick={() => save(items.filter((i) => i.id !== item.id))}
+                  aria-label={`Delete ${item.text}`}
+                >
+                  <IconX size={13} />
+                </button>
+              )}
             </li>
           ))}
         </ul>
       )}
+      {!readOnly && (
       <form
         onSubmit={(e) => {
           e.preventDefault();
@@ -241,10 +271,11 @@ function Todo({ widget, onChange }: { widget: WidgetDTO; onChange: (config: Reco
           aria-label="Add a to-do"
         />
       </form>
+      )}
       {items.length > 0 && (
         <p className="mt-1.5 flex items-center justify-between px-1 text-xs text-slate-400">
           <span>{left === 0 ? "All done" : `${left} to go`}</span>
-          {items.some((i) => i.done) && (
+          {!readOnly && items.some((i) => i.done) && (
             <button type="button" className="hover:text-slate-700 dark:hover:text-slate-200" onClick={() => save(items.filter((i) => !i.done))}>
               Clear done
             </button>
@@ -291,8 +322,8 @@ function ago(iso: string | null) {
   return `${Math.round(hours / 24)}d`;
 }
 
-function Feed({ id, config }: { id: string; config: WidgetConfig<"rss"> }) {
-  const { data, error } = useWidgetData<FeedData>(id, 30 * 60_000, `${config.feedUrl}:${config.limit}`);
+function Feed({ dataUrl, config }: { dataUrl: string; config: WidgetConfig<"rss"> }) {
+  const { data, error } = useWidgetData<FeedData>(dataUrl, 30 * 60_000, `${config.feedUrl}:${config.limit}`);
   if (error) return <p className="px-1 pb-1 text-sm text-slate-500 dark:text-slate-400">{error}</p>;
   if (!data) return <div className="h-28 animate-pulse rounded-lg bg-slate-900/[0.04] dark:bg-white/5" />;
   if (data.items.length === 0) return <p className="px-1 pb-1 text-sm text-slate-500 dark:text-slate-400">No posts yet.</p>;

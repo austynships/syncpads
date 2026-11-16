@@ -146,6 +146,31 @@ describe.skipIf(!url)("widgets on pages", () => {
     await w.deleteWidget(editor, added.widget.id);
   });
 
+  it("shows widgets on share links, to-do lists only with notes included, and serves their data through the link", async () => {
+    const other = await sp.createPage(owner, { name: "Shared widgets" });
+    const clock = await w.createWidget(owner, { pageId: other.id, type: "clock", config: {} });
+    const todo = await w.createWidget(owner, { pageId: other.id, type: "todo", config: { items: [{ id: "x", text: "secret task", done: false }] } });
+    const feedW = await w.createWidget(owner, { pageId: other.id, type: "rss", config: { feedUrl: "https://site.example.com/" } });
+    const token = (await share.sharePage(owner, other.id, {})).share.token;
+
+    let view = await share.getSharedPage(token);
+    expect(view!.widgets.map((x) => x.type)).toEqual(["clock", "rss"]);
+    expect(JSON.stringify(view)).not.toContain("secret task");
+
+    await share.sharePage(owner, other.id, { includeNotes: true });
+    view = await share.getSharedPage(token);
+    expect(view!.widgets.map((x) => x.id)).toEqual([clock.widget.id, todo.widget.id, feedW.widget.id]);
+
+    const data = (await share.sharedWidgetData(token, feedW.widget.id)) as import("@/lib/widgets").FeedData;
+    expect(data.items.length).toBeGreaterThan(0);
+    // Only weather and feed widgets on this shared page.
+    await expect(share.sharedWidgetData(token, clock.widget.id)).rejects.toBeInstanceOf(sp.NotFoundError);
+    const elsewhere = (await widgetsOf(owner)).find((x) => x.type === "rss");
+    if (elsewhere) await expect(share.sharedWidgetData(token, elsewhere.id)).rejects.toBeInstanceOf(sp.NotFoundError);
+    await share.unsharePage(owner, other.id);
+    await expect(share.sharedWidgetData(token, feedW.widget.id)).rejects.toBeInstanceOf(sp.NotFoundError);
+  });
+
   it("finds a site's feed, and serves its posts", async () => {
     const created = await w.createWidget(owner, { pageId, type: "rss", config: { feedUrl: "https://site.example.com/", limit: 5 } });
     expect((created.widget.config as { feedUrl: string }).feedUrl).toBe("https://site.example.com/feed.xml");

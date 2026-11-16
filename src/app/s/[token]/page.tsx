@@ -7,6 +7,7 @@ import { wallpaperCss } from "@/lib/wallpapers";
 import { getSession } from "@/lib/session";
 import { getSharedPage, isPageMember, type SharedPage } from "@/server/share";
 import { JoinToEdit, SaveCopy } from "./save-copy";
+import { SharedWidgets } from "./shared-widgets";
 
 export const dynamic = "force-dynamic";
 
@@ -103,7 +104,9 @@ export default async function SharedPageView({ params }: Props) {
           </p>
         </div>
 
-        {page.groups.length === 0 ? (
+        <SharedWidgets token={token} widgets={page.widgets} />
+
+        {page.groups.length === 0 && page.widgets.length === 0 ? (
           <p className="rounded-2xl border border-slate-900/[0.07] bg-white/85 p-8 text-center text-slate-500 backdrop-blur-md dark:border-white/10 dark:bg-slate-900/80 dark:text-slate-400">This page is empty for now.</p>
         ) : (
           <div className={`grid items-start gap-4 ${COLUMNS[page.layout] ?? COLUMNS.auto}`}>
