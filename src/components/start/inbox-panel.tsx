@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useState } from "react";
 import { IconBot, IconCheck, IconInbox, IconNote, IconX } from "@/components/icons";
 import type { InboxItemDTO, PageDTO } from "@/lib/start-page-types";
@@ -13,10 +12,12 @@ type Props = {
   onClose: () => void;
   onApprove: (item: InboxItemDTO, groupId: string, title: string | undefined) => void;
   onDismiss: (item: InboxItemDTO) => void;
+  /** Opens the Agents and activity window. */
+  onOpenAgents: () => void;
 };
 
 /** Agent Inbox (SP-16): links agents suggested, waiting for the user's decision. */
-export function InboxPanel({ inbox, pages, onClose, onApprove, onDismiss }: Props) {
+export function InboxPanel({ inbox, pages, onClose, onApprove, onDismiss, onOpenAgents }: Props) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
     window.addEventListener("keydown", onKey);
@@ -52,10 +53,10 @@ export function InboxPanel({ inbox, pages, onClose, onApprove, onDismiss }: Prop
               <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
                 When an agent suggests a link or saves context from a conversation, it shows up here for you to review.
               </p>
-              <Link href="/agents" className="btn-secondary mt-5">
+              <button type="button" onClick={onOpenAgents} className="btn-secondary mt-5">
                 <IconBot size={15} />
                 Connect an agent
-              </Link>
+              </button>
             </div>
           ) : (
             inbox.map((item) => (
@@ -65,9 +66,9 @@ export function InboxPanel({ inbox, pages, onClose, onApprove, onDismiss }: Prop
         </div>
 
         <footer className="border-t border-slate-900/[0.07] px-6 py-4 text-xs text-slate-500 dark:border-white/10 dark:text-slate-400">
-          <Link href="/agents" className="font-semibold text-slate-700 underline-offset-2 hover:underline dark:text-slate-200">
+          <button type="button" onClick={onOpenAgents} className="font-semibold text-slate-700 underline-offset-2 hover:underline dark:text-slate-200">
             Agents and activity
-          </Link>{" "}
+          </button>{" "}
           — change what each agent may do, or undo its actions.
         </footer>
       </aside>

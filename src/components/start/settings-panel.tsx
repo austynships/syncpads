@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import type { Wallpaper } from "@/db/schema";
-import Link from "next/link";
 import { IconBot, IconEyeOff, IconMonitor, IconMoon, IconSun, IconTrash, IconX } from "@/components/icons";
 import type { PageDTO, PageLayout, SettingsDTO, Theme } from "@/lib/start-page-types";
 import { PRESET_COLORS, PRESET_WALLPAPERS } from "@/lib/wallpapers";
@@ -22,6 +21,8 @@ type Props = {
   onDeletePage: () => void;
   /** Leave a page someone else shared with you. */
   onLeavePage: () => void;
+  /** Opens the Agents and activity window. */
+  onOpenAgents: () => void;
   onImported: (result: { pageIds: string[]; links: number; pages: number; notes?: number }) => void;
 };
 
@@ -134,13 +135,13 @@ export function SettingsPanel(p: Props) {
 
           <section>
             <h3 className="label">AI agents</h3>
-            <Link href="/agents" className="btn-secondary w-full justify-between">
+            <button type="button" onClick={p.onOpenAgents} className="btn-secondary w-full justify-between">
               <span className="flex items-center gap-2">
                 <IconBot size={16} />
                 Connect agents, permissions and activity
               </span>
               <span aria-hidden="true">→</span>
-            </Link>
+            </button>
             <a href="/docs" className="mt-2 block text-center text-xs font-medium text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white">
               How to use SyncPads with your AI
             </a>

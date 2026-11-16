@@ -49,35 +49,35 @@ export function BillingCard() {
     return () => clearTimeout(timer);
   }, []);
 
-  if (!data) return <section className="mt-6 h-40 animate-pulse rounded-2xl bg-white shadow-sm" />;
+  if (!data) return <section className="mt-6 h-40 animate-pulse rounded-2xl bg-white dark:bg-slate-900 shadow-sm" />;
 
   const { usage, subscription: sub } = data;
   const pro = usage.plan === "pro";
   const justUpgraded = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("upgraded") === "1";
 
   return (
-    <section className="mt-6 rounded-2xl border border-slate-900/[0.07] bg-white p-6 shadow-sm">
+    <section className="mt-6 rounded-2xl border border-slate-900/[0.07] dark:border-white/10 bg-white dark:bg-slate-900 p-6 shadow-sm">
       {justUpgraded && pro && (
-        <p className="mb-5 flex items-center gap-2 rounded-xl bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800">
+        <p className="mb-5 flex items-center gap-2 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 px-4 py-3 text-sm font-medium text-emerald-800 dark:text-emerald-300">
           <IconCheck size={16} />
           Welcome to SyncPads Pro. Thank you for supporting SyncPads!
         </p>
       )}
       {waiting && (
-        <p className="mb-5 rounded-xl bg-slate-50 px-4 py-3 text-sm text-slate-600">Confirming your payment with Stripe…</p>
+        <p className="mb-5 rounded-xl bg-slate-50 dark:bg-white/5 px-4 py-3 text-sm text-slate-600 dark:text-slate-400">Confirming your payment with Stripe…</p>
       )}
 
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h2 className="flex items-center gap-2 font-semibold text-slate-900">
+          <h2 className="flex items-center gap-2 font-semibold text-slate-900 dark:text-white">
             Plan
             <span
-              className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${pro ? "bg-sync-600 text-white" : "bg-slate-100 text-slate-700"}`}
+              className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${pro ? "bg-sync-600 text-white" : "bg-slate-100 dark:bg-white/10 text-slate-700 dark:text-slate-300"}`}
             >
               {pro ? "Pro" : "Free"}
             </span>
           </h2>
-          <p className="mt-1 text-sm text-slate-600">
+          <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
             {pro && sub
               ? sub.cancelAtPeriodEnd
                 ? `Pro until ${date(sub.currentPeriodEnd)}, then you'll move to Free. Nothing will be deleted.`
@@ -89,7 +89,7 @@ export function BillingCard() {
         </div>
         <div className="flex flex-wrap gap-2">
           {!data.available ? (
-            <span className="text-sm text-slate-500">Upgrades are coming soon.</span>
+            <span className="text-sm text-slate-500 dark:text-slate-400">Upgrades are coming soon.</span>
           ) : pro || sub ? (
             <button type="button" className="btn-secondary" disabled={busy !== null} onClick={() => go("portal")}>
               {busy === "portal" ? "Opening…" : "Manage billing"}
@@ -114,9 +114,9 @@ export function BillingCard() {
         <Meter label="AI agents" {...usage.agents} />
       </dl>
       {!pro && (
-        <p className="mt-5 text-sm text-slate-600">
+        <p className="mt-5 text-sm text-slate-600 dark:text-slate-400">
           Pro adds unlimited pages, links and agents, lets agents add links and save context, and turns on search by meaning.{" "}
-          <a href="/pricing" className="font-semibold text-slate-900 underline decoration-sync-500 underline-offset-2">
+          <a href="/pricing" className="font-semibold text-slate-900 dark:text-white underline decoration-sync-500 underline-offset-2">
             Compare plans
           </a>
         </p>
@@ -129,13 +129,13 @@ function Meter({ label, used, limit }: { label: string; used: number; limit: num
   const pct = limit ? Math.min(100, Math.round((used / limit) * 100)) : 0;
   return (
     <div>
-      <dt className="text-xs font-semibold uppercase tracking-wider text-slate-500">{label}</dt>
-      <dd className="mt-1 text-sm text-slate-900">
+      <dt className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">{label}</dt>
+      <dd className="mt-1 text-sm text-slate-900 dark:text-white">
         <span className="font-semibold">{used.toLocaleString()}</span>
-        {limit ? <span className="text-slate-500"> of {limit.toLocaleString()}</span> : <span className="text-slate-500"> · unlimited</span>}
+        {limit ? <span className="text-slate-500 dark:text-slate-400"> of {limit.toLocaleString()}</span> : <span className="text-slate-500 dark:text-slate-400"> · unlimited</span>}
       </dd>
       {limit && (
-        <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-100">
+        <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-100 dark:bg-white/10">
           <div className={`h-full rounded-full ${pct >= 90 ? "bg-sync-600" : "bg-slate-900"}`} style={{ width: `${pct}%` }} />
         </div>
       )}

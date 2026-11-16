@@ -124,20 +124,20 @@ export function AgentsView() {
   }
 
   if (!data) {
-    return <p className="mt-10 text-sm text-slate-500">{error ?? "Loading…"}</p>;
+    return <p className="mt-10 text-sm text-slate-500 dark:text-slate-400">{error ?? "Loading…"}</p>;
   }
 
   const visibleEntries = showReads ? entries : entries.filter((e) => e.action === "add_link" || e.action === "save_context");
 
   return (
     <div className="mt-8 space-y-8">
-      {error && <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">{error}</p>}
+      {error && <p className="rounded-lg border border-red-200 dark:border-red-500/30 bg-red-50 dark:bg-red-500/10 px-3 py-2 text-sm text-red-800 dark:text-red-300">{error}</p>}
 
       {data.plan === "free" && (
-        <p className="rounded-2xl border border-sync-200 bg-sync-50 px-5 py-4 text-sm text-slate-800">
+        <p className="rounded-2xl border border-sync-200 dark:border-sync-500/30 bg-sync-50 dark:bg-sync-500/15 px-5 py-4 text-sm text-slate-800 dark:text-slate-200">
           <strong>You&apos;re on SyncPads Free:</strong> 1 connected agent, which can search and read your pages. With Pro, connect
           as many as you like and let them add links and save context from your conversations.{" "}
-          <a href="/pricing" className="font-semibold text-slate-900 underline decoration-sync-500 underline-offset-2">
+          <a href="/pricing" className="font-semibold text-slate-900 dark:text-white underline decoration-sync-500 underline-offset-2">
             See Pro
           </a>
         </p>
@@ -148,9 +148,9 @@ export function AgentsView() {
       <HowIWorkCard initial={data.contextProfile} onSave={(text) => run(() => api("PATCH", "/api/settings", { contextProfile: text || null }))} />
 
       <section>
-        <h2 className="text-lg font-bold text-slate-900">Connected agents</h2>
+        <h2 className="text-lg font-bold text-slate-900 dark:text-white">Connected agents</h2>
         {data.agents.length === 0 ? (
-          <p className="mt-3 rounded-2xl border border-dashed border-slate-300 bg-white px-5 py-8 text-center text-sm text-slate-500">
+          <p className="mt-3 rounded-2xl border border-dashed border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-5 py-8 text-center text-sm text-slate-500 dark:text-slate-400">
             No agents yet. Connect one with the steps above.
           </p>
         ) : (
@@ -171,7 +171,7 @@ export function AgentsView() {
           </div>
         )}
         {data.pages.some((p) => p.hiddenFromAgents) && (
-          <p className="mt-3 flex items-center gap-1.5 text-xs text-slate-500">
+          <p className="mt-3 flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
             <IconEyeOff size={14} />
             Hidden from every agent: {data.pages.filter((p) => p.hiddenFromAgents).map((p) => p.name).join(", ")}. Change this in
             each page&apos;s settings.
@@ -182,36 +182,36 @@ export function AgentsView() {
       <section>
         <div className="flex items-end justify-between gap-3">
           <div>
-            <h2 className="text-lg font-bold text-slate-900">Activity</h2>
-            <p className="text-sm text-slate-600">Everything your agents did. Links they added can be undone for 30 days.</p>
+            <h2 className="text-lg font-bold text-slate-900 dark:text-white">Activity</h2>
+            <p className="text-sm text-slate-600 dark:text-slate-400">Everything your agents did. Links they added can be undone for 30 days.</p>
           </div>
-          <label className="flex shrink-0 items-center gap-2 text-sm text-slate-600">
+          <label className="flex shrink-0 items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
             <input type="checkbox" checked={showReads} onChange={(e) => setShowReads(e.target.checked)} className="accent-sync-600" />
             Show searches and reads
           </label>
         </div>
-        <ul className="mt-3 divide-y divide-slate-900/[0.06] overflow-hidden rounded-2xl border border-slate-900/[0.07] bg-white">
-          {visibleEntries.length === 0 && <li className="px-5 py-6 text-sm text-slate-500">Nothing yet.</li>}
+        <ul className="mt-3 divide-y divide-slate-900/[0.06] dark:divide-white/10 overflow-hidden rounded-2xl border border-slate-900/[0.07] dark:border-white/10 bg-white dark:bg-slate-900">
+          {visibleEntries.length === 0 && <li className="px-5 py-6 text-sm text-slate-500 dark:text-slate-400">Nothing yet.</li>}
           {visibleEntries.map((e) => (
             <li key={e.id} className="flex items-start gap-3 px-5 py-3.5">
-              <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-600">
+              <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-slate-100 dark:bg-white/10 text-slate-600 dark:text-slate-400">
                 <IconBot size={15} />
               </span>
               <div className="min-w-0 flex-1 text-sm">
-                <p className="text-slate-900">
+                <p className="text-slate-900 dark:text-white">
                   <span className="font-semibold">{e.agentName ?? "Disconnected agent"}</span> · {ACTION_LABEL[e.action] ?? e.action}
                   {e.action === "search" && e.after?.query ? `: "${e.after.query}"` : ""}
                   {e.action === "get_page" && e.after?.page ? `: ${e.after.page}` : ""}
                 </p>
                 {(e.action === "add_link" || e.action === "save_context") && (
-                  <p className="truncate text-slate-600">
+                  <p className="truncate text-slate-600 dark:text-slate-400">
                     {e.itemTitle || e.after?.title || e.itemUrl || e.after?.url}
                     {e.after?.status === "inbox" && !e.undoneAt ? " · sent to your inbox" : ""}
                     {e.after?.secretsRemoved ? ` · ${e.after.secretsRemoved} possible secret${e.after.secretsRemoved === 1 ? "" : "s"} removed` : ""}
                   </p>
                 )}
-                {e.action === "get_context" && e.after?.topic && <p className="truncate text-slate-600">Topic: {e.after.topic}</p>}
-                {e.reason && <p className="mt-0.5 text-xs text-slate-500">&ldquo;{e.reason}&rdquo;</p>}
+                {e.action === "get_context" && e.after?.topic && <p className="truncate text-slate-600 dark:text-slate-400">Topic: {e.after.topic}</p>}
+                {e.reason && <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">&ldquo;{e.reason}&rdquo;</p>}
                 <p className="mt-0.5 text-xs text-slate-400">
                   {new Date(e.createdAt).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}
                   {e.undoneAt ? " · undone" : ""}
@@ -238,9 +238,9 @@ function HowIWorkCard({ initial, onSave }: { initial: string; onSave: (text: str
   const changed = text !== initial;
 
   return (
-    <section className="rounded-2xl border border-slate-900/[0.07] bg-white p-6 shadow-sm">
-      <h2 className="text-lg font-bold text-slate-900">How I work</h2>
-      <p className="mt-1 text-sm text-slate-600">
+    <section className="rounded-2xl border border-slate-900/[0.07] dark:border-white/10 bg-white dark:bg-slate-900 p-6 shadow-sm">
+      <h2 className="text-lg font-bold text-slate-900 dark:text-white">How I work</h2>
+      <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
         Tell every AI you connect how you like to work. They read this first, before anything else in SyncPads. Don&apos;t
         include passwords or keys.
       </p>
@@ -281,16 +281,16 @@ function ConnectCard({ mcpUrl }: { mcpUrl: string }) {
   const client = CLIENTS.find((c) => c.id === tab)!;
 
   return (
-    <section className="rounded-2xl border border-slate-900/[0.07] bg-white p-6 shadow-sm">
+    <section className="rounded-2xl border border-slate-900/[0.07] dark:border-white/10 bg-white dark:bg-slate-900 p-6 shadow-sm">
       <div className="flex items-baseline justify-between gap-3">
-        <h2 className="text-lg font-bold text-slate-900">Connect an agent</h2>
-        <a href="/docs/connect" className="text-sm font-medium text-slate-600 hover:text-slate-900">
+        <h2 className="text-lg font-bold text-slate-900 dark:text-white">Connect an agent</h2>
+        <a href="/docs/connect" className="text-sm font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white">
           Setup guide →
         </a>
       </div>
-      <p className="mt-1 text-sm text-slate-600">Add SyncPads to your AI app with this address:</p>
+      <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">Add SyncPads to your AI app with this address:</p>
       <div className="mt-3 flex gap-2">
-        <code className="flex-1 truncate rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-900">{mcpUrl}</code>
+        <code className="flex-1 truncate rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-white/5 px-3 py-2 text-sm text-slate-900 dark:text-white">{mcpUrl}</code>
         <button
           type="button"
           className="btn-secondary shrink-0"
@@ -305,7 +305,7 @@ function ConnectCard({ mcpUrl }: { mcpUrl: string }) {
         </button>
       </div>
 
-      <div className="mt-5 flex gap-1 rounded-xl bg-slate-100 p-1" role="tablist">
+      <div className="mt-5 flex gap-1 rounded-xl bg-slate-100 dark:bg-white/10 p-1" role="tablist">
         {CLIENTS.map((c) => (
           <button
             key={c.id}
@@ -314,21 +314,21 @@ function ConnectCard({ mcpUrl }: { mcpUrl: string }) {
             aria-selected={tab === c.id}
             onClick={() => setTab(c.id)}
             className={`flex-1 rounded-lg py-1.5 text-sm font-medium transition ${
-              tab === c.id ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-900"
+              tab === c.id ? "bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm" : "text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
             }`}
           >
             {c.label}
           </button>
         ))}
       </div>
-      <p className="mt-4 rounded-xl bg-slate-50 px-4 py-3 text-sm text-slate-700">
+      <p className="mt-4 rounded-xl bg-slate-50 dark:bg-white/5 px-4 py-3 text-sm text-slate-700 dark:text-slate-300">
         Once connected, ask your AI to &ldquo;check SyncPads&rdquo; for anything you&apos;ve saved, or say{" "}
         <strong>&ldquo;save this to SyncPads&rdquo;</strong> to keep a conversation&apos;s decisions and links for every AI you use.{" "}
-        <a href="/docs/guides" className="font-semibold text-slate-900 underline decoration-sync-500 underline-offset-2">
+        <a href="/docs/guides" className="font-semibold text-slate-900 dark:text-white underline decoration-sync-500 underline-offset-2">
           Get the most out of it
         </a>
       </p>
-      <ol className="mt-4 space-y-2 text-sm text-slate-700">
+      <ol className="mt-4 space-y-2 text-sm text-slate-700 dark:text-slate-300">
         {client.steps.map((step, i) =>
           step.startsWith("CODE:") ? (
             <li key={i}>
@@ -338,7 +338,7 @@ function ConnectCard({ mcpUrl }: { mcpUrl: string }) {
             </li>
           ) : (
             <li key={i} className="flex gap-2.5">
-              <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-sync-50 text-[11px] font-bold text-sync-700">
+              <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-sync-50 dark:bg-sync-500/15 text-[11px] font-bold text-sync-700 dark:text-sync-300">
                 {client.steps.slice(0, i + 1).filter((s) => !s.startsWith("CODE:")).length}
               </span>
               {step}
@@ -365,29 +365,29 @@ function AgentCard({
   const selectable = pages.filter((p) => !p.hiddenFromAgents);
 
   return (
-    <article className="rounded-2xl border border-slate-900/[0.07] bg-white p-5 shadow-sm">
+    <article className="rounded-2xl border border-slate-900/[0.07] dark:border-white/10 bg-white dark:bg-slate-900 p-5 shadow-sm">
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-3">
           <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-900 text-white">
             <IconBot size={20} />
           </span>
           <div>
-            <h3 className="font-semibold text-slate-900">{agent.name}</h3>
-            <p className="text-xs text-slate-500">
+            <h3 className="font-semibold text-slate-900 dark:text-white">{agent.name}</h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
               {agent.lastUsedAt
                 ? `Last used ${new Date(agent.lastUsedAt).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}`
                 : "Not used yet"}
             </p>
           </div>
         </div>
-        <button type="button" className="btn-ghost text-red-600 hover:bg-red-50 hover:text-red-700" onClick={onRevoke}>
+        <button type="button" className="btn-ghost text-red-600 hover:bg-red-50 dark:hover:bg-red-500/10 hover:text-red-700" onClick={onRevoke}>
           Disconnect
         </button>
       </div>
 
       <div className="mt-4 grid gap-4 sm:grid-cols-2">
         <label className="block text-sm">
-          <span className="mb-1.5 block font-medium text-slate-800">Access</span>
+          <span className="mb-1.5 block font-medium text-slate-800 dark:text-slate-200">Access</span>
           <select
             value={agent.permission}
             onChange={(e) => onChange({ permission: e.target.value as Agent["permission"] })}
@@ -407,15 +407,15 @@ function AgentCard({
             className="mt-0.5 accent-sync-600"
           />
           <span>
-            <span className="block font-medium text-slate-800">Skip the inbox</span>
-            <span className="block text-xs text-slate-500">Links and context it adds go straight onto your page.</span>
+            <span className="block font-medium text-slate-800 dark:text-slate-200">Skip the inbox</span>
+            <span className="block text-xs text-slate-500 dark:text-slate-400">Links and context it adds go straight onto your page.</span>
           </span>
         </label>
       </div>
 
       <fieldset className="mt-4">
-        <legend className="mb-1.5 text-sm font-medium text-slate-800">Pages it can see</legend>
-        <label className="flex items-center gap-2 text-sm text-slate-700">
+        <legend className="mb-1.5 text-sm font-medium text-slate-800 dark:text-slate-200">Pages it can see</legend>
+        <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
           <input
             type="radio"
             checked={allPages}
@@ -424,7 +424,7 @@ function AgentCard({
           />
           All pages (except hidden ones)
         </label>
-        <label className="mt-1 flex items-center gap-2 text-sm text-slate-700">
+        <label className="mt-1 flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
           <input
             type="radio"
             checked={!allPages}
@@ -446,7 +446,7 @@ function AgentCard({
                     onChange({ pageIds: on ? agent.pageIds!.filter((id) => id !== p.id) : [...agent.pageIds!, p.id] })
                   }
                   className={`rounded-full border px-3 py-1 text-xs font-medium transition ${
-                    on ? "border-slate-900 bg-slate-900 text-white" : "border-slate-300 text-slate-600 hover:border-slate-400"
+                    on ? "border-slate-900 bg-slate-900 text-white" : "border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:border-slate-400"
                   }`}
                 >
                   {p.name}

@@ -9,7 +9,7 @@ export default async function AppPage() {
   return (
     <>
       <SessionKeepAlive />
-      <StartPageLoader userId={user.id} email={user.email} admin={isAdmin(user)} />
+      <StartPageLoader userId={user.id} email={user.email} name={user.name} admin={isAdmin(user)} />
     </>
   );
 }

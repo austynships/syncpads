@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Logo, LogoMark } from "@/components/brand";
 import { IconBot, IconInbox, IconLogOut, IconShare, IconSliders, IconUser } from "@/components/icons";
@@ -15,6 +14,9 @@ import { InboxPanel } from "./inbox-panel";
 import { PageTabs } from "./page-tabs";
 import { SearchBar } from "./search-bar";
 import { SettingsPanel } from "./settings-panel";
+import { AgentsView } from "@/app/agents/agents-view";
+import { AccountSettings } from "@/app/settings/account-settings";
+import { AppModal } from "./app-modal";
 import { NewPageDialog } from "./new-page-dialog";
 import { NotificationsBell } from "./notifications-bell";
 import { ShareDialog } from "./share-dialog";
@@ -23,7 +25,7 @@ import { clearCache, useStartPage } from "./use-start-page";
 
 type Toast = { id: number; message: string; action?: { label: string; run: () => void } };
 
-export function StartPage({ userId, email, admin = false }: { userId: string; email: string; admin?: boolean }) {
+export function StartPage({ userId, email, name = "", admin = false }: { userId: string; email: string; name?: string; admin?: boolean }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
   const toast = useCallback((message: string, action?: Toast["action"]) => {
     const id = Date.now() + Math.random();
@@ -56,6 +58,8 @@ export function StartPage({ userId, email, admin = false }: { userId: string; em
   const [inboxOpen, setInboxOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const [newPageOpen, setNewPageOpen] = useState(false);
+  // Account settings and Agents open as windows over the start page.
+  const [modal, setModal] = useState<"account" | "agents" | null>(null);
 
   // /app?inbox=1 (from an AI-suggestion notification) opens the Agent Inbox.
   useEffect(() => {
@@ -291,7 +295,13 @@ export function StartPage({ userId, email, admin = false }: { userId: string; em
           <button type="button" className="icon-btn" onClick={() => setSettingsOpen(true)} aria-label="Settings" title="Settings">
             <IconSliders size={18} />
           </button>
-          <AccountMenu email={email} userId={userId} admin={admin} />
+          <AccountMenu
+            email={email}
+            userId={userId}
+            admin={admin}
+            onOpenAgents={() => setModal("agents")}
+            onOpenAccount={() => setModal("account")}
+          />
         </header>
 
         <main className="p-4 md:p-6">
@@ -312,6 +322,10 @@ export function StartPage({ userId, email, admin = false }: { userId: string; em
             onRenamePage={(name) => renamePage(page.id, name)}
             onDeletePage={() => deletePage(page.id)}
             onLeavePage={() => leavePage(page)}
+            onOpenAgents={() => {
+              setSettingsOpen(false);
+              setModal("agents");
+            }}
             onImported={async (result) => {
               await refresh();
               if (result.pageIds[0]) selectPage(result.pageIds[0]);
@@ -321,6 +335,23 @@ export function StartPage({ userId, email, admin = false }: { userId: string; em
               );
             }}
           />
+        )}
+
+        {modal === "account" && (
+          <AppModal title="Account settings" onClose={() => setModal(null)}>
+            <div className="pt-4">
+              <AccountSettings name={name} email={email} />
+            </div>
+          </AppModal>
+        )}
+        {modal === "agents" && (
+          <AppModal
+            title="Agents and activity"
+            subtitle="Let Claude, ChatGPT, Cursor and other AI tools use your SyncPads. You decide what each one may do."
+            onClose={() => setModal(null)}
+          >
+            <AgentsView />
+          </AppModal>
         )}
 
         {newPageOpen && <NewPageDialog onClose={() => setNewPageOpen(false)} onCreate={(name, template) => addPage(name, template)} />}
@@ -346,6 +377,10 @@ export function StartPage({ userId, email, admin = false }: { userId: string; em
               toast("Added to your page.");
             }}
             onDismiss={(item) => dismissInbox(item.id)}
+            onOpenAgents={() => {
+              setInboxOpen(false);
+              setModal("agents");
+            }}
           />
         )}
 
@@ -395,7 +430,19 @@ function InboxButton({ count, onClick }: { count: number; onClick: () => void })
   );
 }
 
-function AccountMenu({ email, userId, admin }: { email: string; userId: string; admin: boolean }) {
+function AccountMenu({
+  email,
+  userId,
+  admin,
+  onOpenAgents,
+  onOpenAccount,
+}: {
+  email: string;
+  userId: string;
+  admin: boolean;
+  onOpenAgents: () => void;
+  onOpenAccount: () => void;
+}) {
   const [open, setOpen] = useState(false);
   return (
     <div className="relative">
@@ -411,20 +458,28 @@ function AccountMenu({ email, userId, admin }: { email: string; userId: string; 
       {open && (
         <div className="absolute right-0 mt-2 w-60 rounded-xl border border-slate-900/[0.07] bg-white p-1.5 text-sm shadow-xl dark:border-white/10 dark:bg-slate-900">
           <p className="truncate px-3 pb-2 pt-1.5 text-xs text-slate-500 dark:text-slate-400">{email}</p>
-          <Link
-            href="/agents"
-            className="flex items-center gap-2 rounded-lg px-3 py-2 text-slate-800 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-white/10"
+          <button
+            type="button"
+            onClick={() => {
+              setOpen(false);
+              onOpenAgents();
+            }}
+            className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-slate-800 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-white/10"
           >
             <IconBot size={15} />
             Agents and activity
-          </Link>
-          <Link
-            href="/settings"
-            className="flex items-center gap-2 rounded-lg px-3 py-2 text-slate-800 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-white/10"
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setOpen(false);
+              onOpenAccount();
+            }}
+            className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-slate-800 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-white/10"
           >
             <IconUser size={15} />
             Account settings
-          </Link>
+          </button>
           {admin && (
             <a
               href="/admin"
