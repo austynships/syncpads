@@ -231,7 +231,7 @@ function AiBuilder({ widget, onSave, onClose }: { widget?: WidgetDTO; onSave: (c
     setBuilding(true);
     setError(null);
     try {
-      const res = await api<{ widget: Built }>("POST", "/api/widgets/build", {
+      const res = await api<{ widget: Built }>("POST", "/api/widgets/generate", {
         prompt: prompt || built?.name || "A widget",
         ...(withChange && built ? { currentHtml: built.html, change } : {}),
       });
