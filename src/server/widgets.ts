@@ -18,6 +18,7 @@ import {
   type WidgetConfig,
   type WidgetType,
 } from "@/lib/widgets";
+import { notifyPageActivity } from "./notifications";
 import { safeFetch } from "./safe-fetch";
 import { InvalidInputError, NotFoundError, pageAccess, write } from "./start-page";
 
@@ -54,6 +55,8 @@ export async function createWidget(actorId: string, input: { pageId: string; typ
     const id = crypto.randomUUID();
     await tx.insert(widgets).values({ id, userId: ownerId, pageId: input.pageId, type: input.type, config, position: (top ?? -1) + 1 });
     await touch(input.pageId);
+    // Everyone else on a shared page hears about it (combined with links and notes added in a burst).
+    await notifyPageActivity(tx, actorId, input.pageId, { widgets: 1 });
     return { widget: { id, type: input.type, config, position: (top ?? -1) + 1 } };
   });
 }

@@ -16,6 +16,8 @@ describe("describeCounts", () => {
     expect(describeCounts({ links: 3, notes: 1 })).toBe("3 links and a note");
     expect(describeCounts({ notes: 2 })).toBe("2 notes");
     expect(describeCounts({})).toBe("something");
+    expect(describeCounts({ widgets: 1 })).toBe("a widget");
+    expect(describeCounts({ links: 2, notes: 1, widgets: 3 })).toBe("2 links, a note and 3 widgets");
   });
 });
 
@@ -85,13 +87,26 @@ describe.skipIf(!url)("notifications", () => {
     expect(await titles(editor)).toEqual(["Olivia added a link to “Team tools”"]);
   });
 
+  it("tells others when someone adds a widget, combined with their other additions", async () => {
+    const w = await import("@/server/widgets");
+    await n.markRead(owner, "all");
+    await w.createWidget(editor, { pageId, type: "clock", config: {} });
+    expect((await titles(owner))[0]).toBe("Eddie added a widget to “Team tools”");
+    await sp.createItem(editor, { groupId, type: "link", url: "https://e.example.com" });
+    await w.createWidget(editor, { pageId, type: "todo", config: {} });
+    expect((await titles(owner))[0]).toBe("Eddie added a link and 2 widgets to “Team tools”");
+    expect(await n.unreadCount(owner)).toBe(1);
+    // The person who added it isn't notified.
+    expect((await titles(editor)).some((t) => t.includes("widget"))).toBe(false);
+  });
+
   it("starts a new notification once the last one was read", async () => {
     await n.markRead(owner, "all");
     expect(await n.unreadCount(owner)).toBe(0);
     await sp.createItem(editor, { groupId, type: "link", url: "https://d.example.com" });
     const list = (await n.listNotifications(owner)).items;
     expect(list[0]).toMatchObject({ title: "Eddie added a link to “Team tools”", read: false });
-    expect(list.filter((i) => i.title.startsWith("Eddie added"))).toHaveLength(2);
+    expect(list.filter((i) => i.title.startsWith("Eddie added"))).toHaveLength(3); // the burst before, the widget burst, and this new one
     await n.markRead(owner, [list[0].id]);
     expect(await n.unreadCount(owner)).toBe(0);
   });

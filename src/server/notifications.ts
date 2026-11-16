@@ -46,14 +46,16 @@ const firstName = (name: string | null | undefined) => name?.trim().split(/\s+/)
 const quote = (s: string) => `“${s.length > 60 ? `${s.slice(0, 59)}…` : s}”`;
 export const pageLink = (pageId: string) => `/app?page=${encodeURIComponent(pageId)}`;
 
-/** "3 links and a note", "a link", "2 notes". */
-export function describeCounts(meta: { links?: number; notes?: number }) {
+/** "3 links and a note", "a link", "2 links, a note and a widget". */
+export function describeCounts(meta: { links?: number; notes?: number; widgets?: number }) {
   const part = (n: number, one: string, many: string) => (n === 1 ? `a ${one}` : `${n} ${many}`);
   const parts = [
     ...(meta.links ? [part(meta.links, "link", "links")] : []),
     ...(meta.notes ? [part(meta.notes, "note", "notes")] : []),
+    ...(meta.widgets ? [part(meta.widgets, "widget", "widgets")] : []),
   ];
-  return parts.join(" and ") || "something";
+  if (parts.length === 0) return "something";
+  return parts.length === 1 ? parts[0] : `${parts.slice(0, -1).join(", ")} and ${parts.at(-1)}`;
 }
 
 async function nameOf(exec: Exec, userId: string) {
@@ -155,7 +157,12 @@ async function audience(exec: Exec, pageId: string) {
 // ---------- events ----------
 
 /** Someone added links or notes to a page others share: tell the others. */
-export async function notifyPageActivity(exec: Exec, actorId: string, pageId: string, add: { links?: number; notes?: number }) {
+export async function notifyPageActivity(
+  exec: Exec,
+  actorId: string,
+  pageId: string,
+  add: { links?: number; notes?: number; widgets?: number },
+) {
   const people = await audience(exec, pageId);
   if (people.length < 2) return; // not shared with anyone
   const [who, page] = await Promise.all([nameOf(exec, actorId), pageName(exec, pageId)]);
@@ -164,7 +171,7 @@ export async function notifyPageActivity(exec: Exec, actorId: string, pageId: st
     type: "page_activity",
     pageId,
     actorId,
-    add: { links: add.links ?? 0, notes: add.notes ?? 0 },
+    add: { links: add.links ?? 0, notes: add.notes ?? 0, widgets: add.widgets ?? 0 },
     title: (meta) => `${who} added ${describeCounts(meta)} to ${quote(page)}`,
     link: pageLink(pageId),
   });
