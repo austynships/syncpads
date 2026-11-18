@@ -147,6 +147,21 @@ describe.skipIf(!url)("notifications", () => {
     expect(list[0]).toMatchObject({ link: "/app?inbox=1", body: null });
   });
 
+  it("lets admins message specific people by email", async () => {
+    expect(n.parseEmails("A@x.com, b@y.org\nnot-an-email; a@x.com")).toEqual(["a@x.com", "b@y.org"]);
+    const res = await n.sendDirectMessage(owner, {
+      emails: [`${editor}@TEST.local`, "nobody@nowhere.example"],
+      title: "About your account",
+      body: "Thanks for the feedback!",
+    });
+    expect(res).toEqual({ sent: 1, notFound: ["nobody@nowhere.example"] });
+    const [msg] = (await n.listNotifications(editor)).items;
+    expect(msg).toMatchObject({ type: "admin_message", title: "About your account", body: "Thanks for the feedback!", read: false });
+    expect((await n.listNotifications(other)).items.some((i) => i.title === "About your account")).toBe(false);
+    const sent = (await n.listDirectMessages()).find((m) => m.title === "About your account")!;
+    expect(sent).toMatchObject({ recipients: 1, readCount: 0 });
+  });
+
   it("sends announcements to the right audience, tracks reads, and can retract them", async () => {
     await n.markRead(other, "all");
     await n.markRead(editor, "all");

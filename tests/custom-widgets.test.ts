@@ -7,6 +7,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 const url = process.env.TEST_DATABASE_URL;
 if (url) process.env.DATABASE_URL = url; // before anything imports "@/db"
+process.env.BETTER_AUTH_SECRET ??= "test-secret-for-encrypting-user-keys";
 
 vi.mock("@/lib/redis", () => {
   const store = new Map<string, number>();
@@ -24,16 +25,33 @@ vi.mock("@/lib/redis", () => {
   };
 });
 
-// The Claude API, mocked: records the request and returns a built widget.
+// The Claude API, mocked: records which key each client used and each request.
 const calls: Record<string, unknown>[] = [];
+const keysUsed: string[] = [];
 vi.mock("@anthropic-ai/sdk", () => {
   class APIError extends Error {
     status?: number;
   }
+  class AuthenticationError extends APIError {}
   class FakeAnthropic {
     static APIError = APIError;
+    static AuthenticationError = AuthenticationError;
+    static PermissionDeniedError = class extends APIError {};
+    static BadRequestError = class extends APIError {};
     static RateLimitError = class extends APIError {};
     static APIConnectionError = class extends APIError {};
+    apiKey: string;
+    constructor(opts: { apiKey?: string } = {}) {
+      this.apiKey = opts.apiKey ?? "";
+      keysUsed.push(this.apiKey);
+    }
+    // Used to check a key when it's saved: keys containing "bad" are rejected.
+    models = {
+      list: async () => {
+        if (this.apiKey.includes("bad")) throw new AuthenticationError("invalid x-api-key");
+        return { data: [] };
+      },
+    };
     beta = {
       messages: {
         parse: async (params: Record<string, unknown>) => {
@@ -95,16 +113,46 @@ describe.skipIf(!url)("building widgets and the gallery", () => {
     await dbMod.pool.end();
   });
 
-  it("builds widgets with Claude for Pro users, with a safety fallback", async () => {
-    delete process.env.ANTHROPIC_API_KEY;
-    await expect(cw.buildWidget(author, { prompt: "a timer" })).rejects.toThrow(/isn't available/);
-    process.env.ANTHROPIC_API_KEY = "test-key";
-    await expect(cw.buildWidget(freeUser, { prompt: "a timer" })).rejects.toBeInstanceOf(plans.PlanLimitError);
-    expect(calls).toHaveLength(0); // Free users never reach the API
+  it("needs the person's own Anthropic key, checked and stored encrypted", async () => {
+    const keys = await import("@/server/user-ai-key");
+    const { MissingApiKeyError } = await import("@/server/errors");
+    process.env.ANTHROPIC_API_KEY = "the-servers-own-key"; // never used for widgets
+    await expect(cw.buildWidget(author, { prompt: "a timer" })).rejects.toBeInstanceOf(MissingApiKeyError);
+    expect(calls).toHaveLength(0);
 
+    await expect(keys.saveAnthropicKey(author, "not-a-key")).rejects.toThrow(/sk-ant-/);
+    await expect(keys.saveAnthropicKey(author, "sk-ant-bad-aaaaaaaaaaaaaaaaaaaaaaaa")).rejects.toThrow(/didn't accept/);
+    const status = await keys.saveAnthropicKey(author, "sk-ant-api03-authorkey-aaaaaaaaaaaaaaaaWXYZ");
+    expect(status).toMatchObject({ hasKey: true, hint: "WXYZ" });
+
+    // Encrypted at rest: the database never holds the key itself.
+    const [row] = await dbMod.db
+      .select({ enc: schema.userSettings.anthropicKeyEnc })
+      .from(schema.userSettings)
+      .where((await import("drizzle-orm")).eq(schema.userSettings.userId, author));
+    expect(row.enc).toMatch(/^v1:/);
+    expect(row.enc).not.toContain("authorkey");
+    expect(await keys.getAnthropicKey(author)).toBe("sk-ant-api03-authorkey-aaaaaaaaaaaaaaaaWXYZ");
+    expect(await keys.anthropicKeyStatus(freeUser)).toMatchObject({ hasKey: false });
+  });
+
+  it("builds widgets with the person's own key, on any plan, with a safety fallback", async () => {
+    const keys = await import("@/server/user-ai-key");
+    keysUsed.length = 0;
     const built = await cw.buildWidget(author, { prompt: "a pomodoro timer" });
     expect(built).toMatchObject({ name: "Pomodoro timer", description: "A focus timer." });
     expect(calls[0]).toMatchObject({ model: "claude-opus-5-5", fallbacks: "default", betas: ["server-side-fallback-2026-07-01"] });
+    expect(keysUsed).toEqual(["sk-ant-api03-authorkey-aaaaaaaaaaaaaaaaWXYZ"]); // not the server's key
+
+    // Free users can build too, with their own key.
+    await keys.saveAnthropicKey(freeUser, "sk-ant-api03-freekey-bbbbbbbbbbbbbbbbbbbb");
+    await expect(cw.buildWidget(freeUser, { prompt: "a tip calculator" })).resolves.toMatchObject({ name: "Pomodoro timer" });
+    expect(keysUsed.at(-1)).toBe("sk-ant-api03-freekey-bbbbbbbbbbbbbbbbbbbb");
+    calls.splice(1); // keep the numbering below as before
+
+    // Removing the key stops building.
+    await keys.removeAnthropicKey(freeUser);
+    await expect(cw.buildWidget(freeUser, { prompt: "x" })).rejects.toThrow(/Add your Anthropic API key/);
 
     await cw.buildWidget(author, { prompt: "a pomodoro timer", currentHtml: built.html, change: "bigger numbers" });
     expect(String((calls[1].messages as { content: string }[])[0].content)).toContain("bigger numbers");

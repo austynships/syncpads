@@ -56,7 +56,7 @@ export default async function UsersPage({ searchParams }: { searchParams: Params
             </Link>
           )}
         </form>
-        <Table head={["User", "Plan", "Links", "Pages", "Agents", "Last active", "Joined"]} empty={list.users.length === 0 && "No users found."}>
+        <Table head={["User", "Plan", "Links", "Pages", "Agents", "Last active", "Joined", ""]} empty={list.users.length === 0 && "No users found."}>
           {list.users.map((u) => (
             <tr key={u.id}>
               <td className={td}>
@@ -74,6 +74,11 @@ export default async function UsersPage({ searchParams }: { searchParams: Params
               <td className={td}>{num(u.agents)}</td>
               <td className={`${td} text-slate-500`}>{ago(u.lastActive)}</td>
               <td className={`${td} text-slate-500`}>{date(u.createdAt)}</td>
+              <td className={`${td} text-right`}>
+                <Link href={`/admin/announcements?to=${encodeURIComponent(u.email)}`} className="text-xs font-semibold text-sync-600 hover:text-sync-700">
+                  Message
+                </Link>
+              </td>
             </tr>
           ))}
         </Table>

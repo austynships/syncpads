@@ -103,7 +103,15 @@ Never suggest storing secrets in code.`}</CodeBlock>
           In <strong>Add widget</strong>, choose <strong>Create with AI</strong> and describe what you want: &ldquo;a Pomodoro
           timer that counts today&apos;s sessions&rdquo;, &ldquo;a habit tracker for 3 habits&rdquo;, &ldquo;a tip calculator&rdquo;.
           You get a live preview in about 30 seconds; ask for changes in plain words (&ldquo;bigger buttons&rdquo;, &ldquo;add a
-          sound&rdquo;) until it&apos;s right, then add it. Building widgets is part of <strong>Pro</strong> (up to 30 builds a day).
+          sound&rdquo;) until it&apos;s right, then add it.
+        </p>
+        <p>
+          The builder uses <strong>your own Anthropic API key</strong>, so Anthropic bills your account directly (usually a few cents
+          per widget). Create a key at{" "}
+          <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener noreferrer">console.anthropic.com</a>{" "}
+          and add it the first time you build, or any time in <strong>Account settings</strong> → <strong>AI widget builder</strong>. It&apos;s
+          checked with Anthropic, stored encrypted, and only used to build your widgets; you can replace or remove it there. Works
+          on every plan.
         </p>
         <p>
           Custom widgets run in a sandbox: they can&apos;t see your account, your other pages or anything else in SyncPads. They

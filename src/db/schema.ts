@@ -486,6 +486,11 @@ export const userSettings = mysqlTable("user_settings", {
   aiEnabled: boolean("ai_enabled").notNull().default(false),
   // "How I work": the user's standing context, which agents read first (get_context).
   contextProfile: text("context_profile"),
+  // The person's own Anthropic API key, for building custom widgets: encrypted
+  // with AES-256-GCM (src/server/secrets.ts), never sent back to the browser.
+  anthropicKeyEnc: text("anthropic_key_enc"),
+  anthropicKeyHint: varchar("anthropic_key_hint", { length: 16 }), // last 4 characters, for display
+  anthropicKeyAddedAt: datetime("anthropic_key_added_at", { mode: "date", fsp: 3 }),
   updatedAt: updatedAt(),
 });
 

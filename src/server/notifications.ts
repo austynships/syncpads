@@ -27,7 +27,8 @@ export type NotificationType =
   | "page_unshared"
   | "page_deleted"
   | "agent_suggestion"
-  | "gallery";
+  | "gallery"
+  | "admin_message";
 
 export type NotificationDTO = {
   /** "n_<id>" for personal notifications, "a_<id>" for announcements. */
@@ -333,6 +334,62 @@ export async function markRead(userId: string, ids: string[] | "all") {
 // ---------- announcements (admin) ----------
 
 export type Audience = "all" | "free" | "pro";
+
+// ---------- direct messages (admin to specific people) ----------
+
+/** Splits a pasted list of emails (commas, spaces or new lines). */
+export function parseEmails(text: string) {
+  return [...new Set(text.split(/[\s,;]+/).map((e) => e.trim().toLowerCase()).filter((e) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e)))];
+}
+
+/**
+ * An admin sends a notification to specific people by email. Returns how many
+ * got it and which addresses don't belong to a SyncPads account.
+ */
+export async function sendDirectMessage(
+  adminId: string,
+  input: { emails: string[]; title: string; body?: string | null; link?: string | null },
+) {
+  const emails = [...new Set(input.emails.map((e) => e.trim().toLowerCase()))].slice(0, 500);
+  if (emails.length === 0) return { sent: 0, notFound: [] as string[] };
+  const rows = await db
+    .select({ id: users.id, email: users.email })
+    .from(users)
+    .where(sql`LOWER(${users.email}) IN (${sql.join(emails.map((e) => sql`${e}`), sql`, `)})`);
+  const found = new Set(rows.map((r) => r.email.toLowerCase()));
+  if (rows.length) {
+    await db.insert(notifications).values(
+      rows.map((r) => ({
+        userId: r.id,
+        type: "admin_message",
+        title: input.title.trim().slice(0, 255),
+        body: input.body?.trim() || null,
+        link: input.link?.trim() || null,
+        actorId: adminId,
+      })),
+    );
+  }
+  return { sent: rows.length, notFound: emails.filter((e) => !found.has(e)) };
+}
+
+/** Recent direct messages, one row per send, with how many people got and read it. */
+export async function listDirectMessages() {
+  const [rows] = await db.execute(sql`
+    SELECT n.title, n.body, n.link, MIN(n.created_at) AS sentAt, COUNT(*) AS recipients, SUM(n.read_at IS NOT NULL) AS readCount,
+           GROUP_CONCAT(u.email ORDER BY u.email SEPARATOR ', ') AS emails
+    FROM notifications n JOIN users u ON u.id = n.user_id
+    WHERE n.type = 'admin_message'
+    GROUP BY n.actor_id, n.title, n.body, n.link, DATE_FORMAT(n.created_at, '%Y-%m-%d %H:%i:%s')
+    ORDER BY sentAt DESC
+    LIMIT 50
+  `);
+  return (rows as unknown as { title: string; body: string | null; link: string | null; sentAt: Date; recipients: number; readCount: number; emails: string }[]).map((r) => ({
+    ...r,
+    sentAt: new Date(r.sentAt),
+    recipients: Number(r.recipients),
+    readCount: Number(r.readCount),
+  }));
+}
 
 export async function createAnnouncement(adminId: string, input: { title: string; body?: string | null; link?: string | null; audience: Audience }) {
   const id = crypto.randomUUID();

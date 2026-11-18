@@ -7,6 +7,7 @@ import { z, ZodError } from "zod";
 import { auth } from "@/lib/auth";
 import { syncpadsFileSchema } from "@/lib/syncpads-file";
 import { BillingUnavailableError } from "./billing";
+import { MissingApiKeyError } from "./errors";
 import { PlanLimitError } from "./plans";
 import { InvalidInputError, NotFoundError } from "./start-page";
 
@@ -45,6 +46,7 @@ export async function handle(request: Request, fn: Handler): Promise<Response> {
     if (err instanceof ZodError) return error(400, err.issues[0]?.message ?? "Invalid input.");
     if (err instanceof InvalidInputError) return error(400, err.message);
     if (err instanceof PlanLimitError) return Response.json({ error: err.message, upgrade: true }, { status: 402 });
+    if (err instanceof MissingApiKeyError) return Response.json({ error: err.message, needsKey: true }, { status: 400 });
     if (err instanceof BillingUnavailableError) return error(503, err.message);
     if (err instanceof NotFoundError) return error(404, err.message);
     if (err instanceof SyntaxError) return error(400, "Request body must be JSON.");
@@ -132,6 +134,18 @@ export const schemas = {
   reportGallery: z.object({ reason: z.string().trim().max(300).optional() }),
   reviewGallery: z.object({ decision: z.enum(["publish", "reject", "remove"]), note: z.string().max(300).nullish() }),
   markRead: z.object({ ids: z.array(z.string().max(40)).max(100).optional(), all: z.boolean().optional() }),
+  anthropicKey: z.object({ key: z.string().max(300) }),
+  directMessage: z.object({
+    to: z.string().max(20_000),
+    title: z.string().trim().min(1, "Add a title.").max(120, "Keep the title under 120 characters."),
+    body: z.string().trim().max(1000, "Keep the message under 1,000 characters.").nullish(),
+    link: z
+      .string()
+      .trim()
+      .max(512)
+      .refine((v) => v === "" || (v.startsWith("/") && !v.startsWith("//")) || v.startsWith("https://"), "The link must start with / or https://")
+      .nullish(),
+  }),
   announcement: z.object({
     title: z.string().trim().min(1, "Add a title.").max(120, "Keep the title under 120 characters."),
     body: z.string().trim().max(1000, "Keep the message under 1,000 characters.").nullish(),

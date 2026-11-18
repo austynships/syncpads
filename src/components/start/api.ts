@@ -8,9 +8,10 @@ export async function api<T = { revision: number }>(method: string, path: string
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
-    const err = new Error(data.error ?? `Request failed (${res.status})`) as Error & { status: number; upgrade?: boolean };
+    const err = new Error(data.error ?? `Request failed (${res.status})`) as Error & { status: number; upgrade?: boolean; needsKey?: boolean };
     err.status = res.status;
     err.upgrade = data.upgrade === true; // a Free plan limit (SP-20)
+    err.needsKey = data.needsKey === true; // the widget builder needs the person's Anthropic key
     throw err;
   }
   return data as T;

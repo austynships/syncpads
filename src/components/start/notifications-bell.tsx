@@ -28,7 +28,7 @@ function ago(iso: string) {
 }
 
 function TypeIcon({ type }: { type: string }) {
-  const Icon = type === "announcement" || type === "gallery" ? IconMegaphone : type === "agent_suggestion" ? IconBot : IconUsers;
+  const Icon = type === "announcement" || type === "gallery" || type === "admin_message" ? IconMegaphone : type === "agent_suggestion" ? IconBot : IconUsers;
   const tone =
     type === "announcement"
       ? "bg-sync-500/15 text-sync-600 dark:text-sync-300"
@@ -182,9 +182,9 @@ export function NotificationsBell({ onOpenPage, onOpenInbox }: { onOpenPage: (pa
                     >
                       <TypeIcon type={n.type} />
                       <span className="min-w-0 flex-1">
-                        {n.type === "announcement" && (
+                        {(n.type === "announcement" || n.type === "admin_message") && (
                           <span className="mb-0.5 block text-[11px] font-bold uppercase tracking-wider text-sync-600 dark:text-sync-300">
-                            What&apos;s new
+                            {n.type === "announcement" ? "What's new" : "Message from SyncPads"}
                           </span>
                         )}
                         <span className={`block text-sm leading-snug ${n.read ? "text-slate-700 dark:text-slate-300" : "font-semibold text-slate-900 dark:text-white"}`}>

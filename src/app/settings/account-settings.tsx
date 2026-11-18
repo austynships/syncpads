@@ -1,7 +1,18 @@
 "use client";
 
+import { AnthropicKeyForm, useAnthropicKey } from "@/components/anthropic-key";
 import { BillingCard } from "./billing-card";
 import { DeleteAccountForm } from "./delete-account-form";
+
+function AiKeySection() {
+  const [status, setStatus] = useAnthropicKey();
+  return (
+    <section className="mt-6 rounded-2xl border border-slate-900/[0.07] bg-white p-6 shadow-sm dark:border-white/10 dark:bg-slate-900">
+      <h2 className="mb-3 font-semibold text-slate-900 dark:text-white">AI widget builder</h2>
+      {status ? <AnthropicKeyForm status={status} onChange={setStatus} /> : <div className="h-16 animate-pulse rounded-lg bg-slate-900/[0.04] dark:bg-white/5" />}
+    </section>
+  );
+}
 
 /**
  * Account, plan and billing, and account deletion. Shown on /settings and in
@@ -21,6 +32,8 @@ export function AccountSettings({ name, email }: { name: string; email: string }
       </section>
 
       <BillingCard />
+
+      <AiKeySection />
 
       <section className="mt-6 rounded-2xl border border-red-200 bg-white p-6 shadow-sm dark:border-red-500/30 dark:bg-slate-900">
         <h2 className="font-semibold text-red-700 dark:text-red-400">Delete account</h2>

@@ -4,43 +4,56 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { IconMegaphone } from "@/components/icons";
 
-type Audience = "all" | "free" | "pro";
+type Audience = "all" | "free" | "pro" | "people";
 
 const AUDIENCES: { id: Audience; label: string }[] = [
   { id: "all", label: "Everyone" },
   { id: "free", label: "Free users" },
   { id: "pro", label: "Pro users" },
+  { id: "people", label: "Specific people" },
 ];
 
 /** Write an announcement, preview it as it will look in the bell, and send it. */
-export function Compose({ sizes }: { sizes: Record<Audience, number> }) {
+export function Compose({ sizes, initialTo = "" }: { sizes: Record<Exclude<Audience, "people">, number>; initialTo?: string }) {
   const router = useRouter();
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
   const [link, setLink] = useState("");
-  const [audience, setAudience] = useState<Audience>("all");
+  const [audience, setAudience] = useState<Audience>(initialTo ? "people" : "all");
+  const [to, setTo] = useState(initialTo);
+  const recipients = [...new Set(to.split(/[\s,;]+/).map((e) => e.trim().toLowerCase()).filter((e) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e)))];
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<{ kind: "ok" | "error"; text: string } | null>(null);
 
-  const reach = sizes[audience];
-  const canSend = title.trim().length > 0 && !busy;
+  const reach = audience === "people" ? recipients.length : sizes[audience];
+  const canSend = title.trim().length > 0 && !busy && (audience !== "people" || recipients.length > 0);
 
   async function send() {
     setBusy(true);
     setMessage(null);
     try {
-      const res = await fetch("/api/admin/announcements", {
+      const direct = audience === "people";
+      const res = await fetch(direct ? "/api/admin/messages" : "/api/admin/announcements", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title, body: body || null, link: link || null, audience }),
+        body: JSON.stringify(direct ? { to, title, body: body || null, link: link || null } : { title, body: body || null, link: link || null, audience }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error ?? "Couldn't send it. Please try again.");
       setTitle("");
       setBody("");
       setLink("");
-      setMessage({ kind: "ok", text: `Sent to ${reach.toLocaleString()} ${reach === 1 ? "person" : "people"}.` });
+      if (direct) {
+        const notFound = (data.notFound ?? []) as string[];
+        setMessage({
+          kind: notFound.length && !data.sent ? "error" : "ok",
+          text: `Sent to ${data.sent} ${data.sent === 1 ? "person" : "people"}.${notFound.length ? ` No SyncPads account for: ${notFound.join(", ")}.` : ""}`,
+        });
+        setTo("");
+      } else {
+        setMessage({ kind: "ok", text: `Sent to ${reach.toLocaleString()} ${reach === 1 ? "person" : "people"}.` });
+      }
       router.refresh();
     } catch (err) {
       setMessage({ kind: "error", text: (err as Error).message });
@@ -90,11 +103,29 @@ export function Compose({ sizes }: { sizes: Record<Audience, number> }) {
                   audience === a.id ? "border-slate-900 bg-slate-900 text-white" : "border-slate-300 text-slate-700 hover:bg-slate-50"
                 }`}
               >
-                {a.label} <span className="font-normal opacity-70">({sizes[a.id].toLocaleString()})</span>
+                {a.label}
+                {a.id !== "people" && <span className="font-normal opacity-70"> ({sizes[a.id].toLocaleString()})</span>}
               </button>
             ))}
           </div>
         </div>
+
+        {audience === "people" && (
+          <label className="mt-4 block text-sm font-medium text-slate-900">
+            Email addresses
+            <textarea
+              className="field mt-1 min-h-20 font-mono text-xs"
+              value={to}
+              onChange={(e) => setTo(e.target.value)}
+              placeholder="alex@example.com, sam@example.com"
+            />
+            <span className="mt-1 block text-xs font-normal text-slate-500">
+              Separate with commas or new lines.{" "}
+              {recipients.length > 0 && `${recipients.length} ${recipients.length === 1 ? "address" : "addresses"}. `}
+              They get it as a &ldquo;Message from SyncPads&rdquo; in their bell.
+            </span>
+          </label>
+        )}
 
         <div className="mt-5 flex flex-wrap items-center gap-3">
           {confirming ? (
@@ -112,7 +143,7 @@ export function Compose({ sizes }: { sizes: Record<Audience, number> }) {
           ) : (
             <button type="button" className="btn-primary" disabled={!canSend} onClick={() => setConfirming(true)}>
               <IconMegaphone size={15} />
-              Send announcement
+              {audience === "people" ? "Send message" : "Send announcement"}
             </button>
           )}
           {message && (
@@ -132,7 +163,9 @@ export function Compose({ sizes }: { sizes: Record<Audience, number> }) {
               <IconMegaphone size={16} />
             </span>
             <span className="min-w-0 flex-1">
-              <span className="mb-0.5 block text-[11px] font-bold uppercase tracking-wider text-sync-600">What&apos;s new</span>
+              <span className="mb-0.5 block text-[11px] font-bold uppercase tracking-wider text-sync-600">
+                {audience === "people" ? "Message from SyncPads" : "What's new"}
+              </span>
               <span className="block text-sm font-semibold leading-snug text-slate-900">{title || "Your title"}</span>
               {body && <span className="mt-0.5 block whitespace-pre-line text-xs leading-relaxed text-slate-500">{body}</span>}
               <span className="mt-1 block text-[11px] text-slate-400">Just now</span>

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { IconArrowLeft, IconX } from "@/components/icons";
 import { BUILT_IN_WIDGETS, WIDGET_INFO, defaultConfig, type WidgetConfig, type WidgetDTO, type WidgetType } from "@/lib/widgets";
 import { api } from "./api";
+import { AnthropicKeyForm, useAnthropicKey } from "@/components/anthropic-key";
 import { CustomWidgetFrame } from "./custom-widget-frame";
 
 type Props = {
@@ -221,6 +222,7 @@ function AiBuilder({ widget, onSave, onClose }: { widget?: WidgetDTO; onSave: (c
   const [building, setBuilding] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<{ text: string; upgrade: boolean } | null>(null);
+  const [keyStatus, setKeyStatus] = useAnthropicKey();
   const [publish, setPublish] = useState<{ open: boolean; description: string; state: "idle" | "sending" | "sent"; error?: string }>({
     open: false,
     description: "",
@@ -239,6 +241,8 @@ function AiBuilder({ widget, onSave, onClose }: { widget?: WidgetDTO; onSave: (c
       if (withChange) setChange("");
       setPublish((p) => ({ ...p, description: p.description || res.widget.description }));
     } catch (err) {
+      // A missing or rejected key: show the key form again, with the reason.
+      if ((err as { needsKey?: boolean }).needsKey) setKeyStatus({ hasKey: false, hint: null, addedAt: null });
       setError({ text: (err as Error).message, upgrade: (err as { upgrade?: boolean }).upgrade === true });
     } finally {
       setBuilding(false);
@@ -282,7 +286,18 @@ function AiBuilder({ widget, onSave, onClose }: { widget?: WidgetDTO; onSave: (c
     <>
       <div className="grid flex-1 gap-5 overflow-y-auto px-5 py-4 md:grid-cols-[1fr_320px]">
         <div className="space-y-4">
-          {!built ? (
+          {keyStatus && !keyStatus.hasKey ? (
+            <div className="rounded-xl border border-sync-500/30 bg-sync-500/[0.05] p-4">
+              <p className="mb-2 text-sm font-semibold text-slate-900 dark:text-white">Add your Anthropic API key</p>
+              <AnthropicKeyForm
+                status={keyStatus}
+                onChange={(s) => {
+                  setKeyStatus(s);
+                  setError(null);
+                }}
+              />
+            </div>
+          ) : !built ? (
             <>
               <Field label="Describe your widget">
                 <textarea
@@ -309,7 +324,12 @@ function AiBuilder({ widget, onSave, onClose }: { widget?: WidgetDTO; onSave: (c
                   ))}
                 </div>
               </div>
-              <button type="button" className="btn-primary w-full py-2.5" disabled={building || prompt.trim().length < 3} onClick={() => build(false)}>
+              {keyStatus?.hasKey && (
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Uses your Anthropic API key ending in <span className="font-mono">{keyStatus.hint}</span>. Change it in Account settings.
+                </p>
+              )}
+              <button type="button" className="btn-primary w-full py-2.5" disabled={building || prompt.trim().length < 3 || !keyStatus?.hasKey} onClick={() => build(false)}>
                 {building ? "Building your widget… (about 30 seconds)" : "✨ Build widget"}
               </button>
             </>
