@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { MAX_CUSTOM_DATA } from "@/lib/widgets";
 
 /**
@@ -31,12 +31,14 @@ export function CustomWidgetFrame({
   const frameRef = useRef<HTMLIFrameElement>(null);
   const holderRef = useRef<HTMLDivElement>(null);
   const [height, setHeight] = useState(120);
-  const [dark, setDark] = useState(false);
+  // null until the surrounding theme is known: the frame loads once, with the right theme.
+  const [dark, setDark] = useState<boolean | null>(null);
   const onSaveRef = useRef(onSave);
   onSaveRef.current = onSave;
 
   // Follow the surrounding theme: a .dark ancestor, or a "system" share page on a dark device.
-  useEffect(() => {
+  // Measured before paint, so the first document already has the right colors.
+  useLayoutEffect(() => {
     const holder = holderRef.current;
     if (!holder) return;
     const mq = window.matchMedia("(prefers-color-scheme: dark)");
@@ -59,14 +61,17 @@ export function CustomWidgetFrame({
   const latestData = useRef(data);
   latestData.current = data;
   // Rebuilt only when the code or the theme changes, so saving doesn't reload the widget.
-  const srcDoc = useMemo(() => buildDocument(html, latestData.current ?? null, dark), [html, dark]);
+  const srcDoc = useMemo(() => (dark === null ? "" : buildDocument(html, latestData.current ?? null, dark)), [html, dark]);
 
   useEffect(() => {
     let saveTimer: ReturnType<typeof setTimeout> | undefined;
     const onMessage = (e: MessageEvent) => {
       if (e.source !== frameRef.current?.contentWindow) return; // only this widget's frame
       const msg = e.data as { type?: string; height?: number; data?: unknown };
-      if (msg?.type === "sp:height" && typeof msg.height === "number") {
+      if (msg?.type === "sp:escape") {
+        // Clicking into a widget gives it the keyboard; pass Escape on so dialogs still close.
+        window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+      } else if (msg?.type === "sp:height" && typeof msg.height === "number") {
         setHeight(Math.min(maxHeight, Math.max(40, Math.ceil(msg.height))));
       } else if (msg?.type === "sp:save" && onSaveRef.current) {
         let size = Infinity;
@@ -88,8 +93,12 @@ export function CustomWidgetFrame({
   }, [maxHeight]);
 
   return (
-    <div ref={holderRef}>
+    <div ref={holderRef} style={dark === null ? { height } : undefined}>
+      {dark !== null && (
       <iframe
+        // A theme change loads a fresh frame: browsers can keep showing the old
+        // document when srcdoc changes while it's still loading.
+        key={dark ? "dark" : "light"}
         ref={frameRef}
         title={title}
         srcDoc={srcDoc}
@@ -98,6 +107,7 @@ export function CustomWidgetFrame({
         className="block w-full border-0 bg-transparent"
         style={{ height, colorScheme: dark ? "dark" : "light" }}
       />
+      )}
     </div>
   );
 }
@@ -131,6 +141,7 @@ button{font:inherit}
     theme: ${JSON.stringify(dark ? "dark" : "light")}
   };
   function report(){ parent.postMessage({ type: "sp:height", height: document.documentElement.scrollHeight }, "*"); }
+  document.addEventListener("keydown", function(e){ if (e.key === "Escape") parent.postMessage({ type: "sp:escape" }, "*"); });
   window.addEventListener("load", report);
   if (window.ResizeObserver) new ResizeObserver(report).observe(document.documentElement);
   setTimeout(report, 50);
